@@ -19,9 +19,9 @@ namespace intel {
             int global_rank; // from 0 to global_rank_size-1
             int local_rank; // from 0 to local_rank_size-1
             sycl::queue q; // sycl queue associated to the rank
-            ccl::communicator comm;
-            ccl::stream stream;
-            log::Logger logger;
+            std::unique_ptr<ccl::communicator> comm;
+            std::unique_ptr<ccl::stream> stream;
+            std::unique_ptr<log::Logger> logger;
         };
 
         
@@ -29,11 +29,19 @@ namespace intel {
             Composite, // Intel GPU as a whole
             Flat // Intel GPU as individual tiles
         };
+        
+        std::string to_string(GPUMode mode) {
+            switch (mode) {
+                case Composite: return "Composite";
+                case Flat:      return "Flat";
+            }
+            return "Unknown";
+        }
 
         // local_size_rank is the number of rank running on the same node (i.e., local communicator size)
         // if we have 2 nodes with 4 GPUs each, and we run 8 ranks, local_size_rank is 4
         // Each rank will see 4 GPUs numbered from 0 to 3
-        sycl::device pick_device_for_rank(intel::utils::OneCCLContext& ctx,onst intel::utils::GPUMode& gpu_mode) {
+        sycl::device pick_device_for_rank(intel::utils::OneCCLContext& ctx,const intel::utils::GPUMode& gpu_mode) {
             std::vector<sycl::device> candidates; // Available devices for each rank
             
             for (const auto& plat : sycl::platform::get_platforms()) { // Handle only Level-Zero platforms: oneCCL only supports Intel GPUs 
@@ -89,12 +97,11 @@ namespace intel {
             ctx.local_rank_size = local_rank_size;
             ctx.global_rank = global_rank;
             ctx.local_rank = local_rank;
-            // Scegli il (sub)device per questo rank
+
             sycl::device dev = pick_device_for_rank(ctx, gpu_mode);
 
-            // Context e queue SOLO su quel (sub)device (best practice)
-            sycl::context ctx(dev);
-            sycl::queue q(ctx, dev, { sycl::property::queue::in_order() }); 
+            sycl::context ctx_sycl(dev);
+            sycl::queue q(ctx_sycl, dev, { sycl::property::queue::in_order() }); 
 
             // KVS + communicator + stream
             ccl::shared_ptr_class<ccl::kvs> kvs;
@@ -108,11 +115,13 @@ namespace intel {
 
             auto ccl_dev = ccl::create_device(q.get_device());  // create ccl device from sycl device
             auto ccl_ctx = ccl::create_context(q.get_context()); // crea ccl context from sycl context
-            auto comm    = ccl::create_communicator(global_rank_size, global_rank, ccl_dev, ccl_ctx, kvs); // create communicator
-            auto stream  = ccl::create_stream(q); // create ccl stream from sycl queue
+            ctx.comm = std::make_unique<ccl::communicator>(ccl::create_communicator(global_rank_size, global_rank, ccl_dev, ccl_ctx, kvs)); // create communicator
+            ctx.stream  = std::make_unique<ccl::stream>(ccl::create_stream(q)); // create ccl stream from sycl queue
+            ctx.q = std::move(q);
+            log::Logger logger(output_dir, "occl", collective_name, intel::utils::to_string(gpu_mode)); // create logger instance 
 
-            log::Logger logger(output_dir, "occl", collective_name); // create logger instance 
-            return intel::utils::OneCCLContext{global_rank_size, local_rank_size, global_rank, local_rank, std::move(q), std::move(comm), std::move(stream), std::move(logger)};
+            ctx.logger = std::make_unique<log::Logger>(std::move(logger)); // move logger instance
+            return ctx;
         }
     } // namespace utils
 } // namespace intel
