@@ -150,8 +150,25 @@ namespace common {
                 initialize_node_info();
             }
             
+             // T define the data type used for the collective operation
+            template <typename T>
+            struct ProfilingInfo {
+                double time_ms;
+                size_t message_size_bytes;
+                double device_energy_mj; // in mj 
+                double host_energy_mj; // in mj
+                int global_rank;
+                int local_rank;
+                int num_ranks;
+                int run_id; // index of the current run
+                bool test_passed; // check the results of the collective operation
+                bool chain_size; // check the results of the collective operation
+                std::string gpu_mode; // composite or flat: only for intel GPUs
+            };
+
+
             template<typename T>
-            void log_result(common::logger::ProfilingInfo<T> info){
+            void log_result(ProfilingInfo<T> info){
                 /* 
                    For each message size we execute multiple times the same collective "c" so that we have a chain like this c_1, c_2, ... c_m, where m=chain_size.
                    The ProfilingInfo struct contains the time in ms and energy in mJ for the execution of the whole chain c_1, c_2, ... c_m,
@@ -163,16 +180,12 @@ namespace common {
                 double data_Gb = static_cast<double>(info.message_size_bytes) / 1.25e+8;
                 double goodput_Gb_per_s = data_Gb / (time_ms_1coll / 1000); // Gigabit per seconds 
 
-                if (output_dir.empty()) {
-                    std::cerr << "Output directory is not defined" <<std::endl;
-                    return;
-                }
-
+                
                 std::string filename = output_file_path;
                 
                 // Only rank 0 write the csv header 
                 int needs_header = 0;
-                if (rank == 0) {
+                if (info.global_rank == 0) {
                     bool is_new_file = !file_exists(filename);
                     needs_header = is_new_file ? 1 : 0;
                 }
@@ -180,7 +193,7 @@ namespace common {
                 MPI_Bcast(&needs_header, 1, MPI_INT, 0, MPI_COMM_WORLD);
                 
                 // Solo il rank 0 scrive l'header se necessario
-                if (needs_header && rank == 0) {
+                if (needs_header && info.global_rank == 0) {
                     std::ofstream header_file(filename, std::ios::app);
                     if (header_file.is_open()) {
                         write_header(header_file);
@@ -236,7 +249,7 @@ namespace common {
                         << " bytes=" << info.message_size_bytes 
                         << " size=" << info.message_size_bytes / sizeof(T) 
                         << " ranks=" << info.num_ranks 
-                        << " rank=" << rank << " hostname=" << hostname << " node=" << node_id
+                        << " rank=" << info.global_rank << " hostname=" << hostname << " node=" << node_id
                         << " run=" << info.run_id << " gpu_mode=" << info.gpu_mode << " passed=" << (info.test_passed ? "true" : "false")
                         << " time=" << time_ms_1coll << "ms" << " -> " << filename << std::endl;
             }
@@ -258,24 +271,6 @@ namespace common {
                 std::cout << "\nOutput format: CSV files with columns:" << std::endl;
                 std::cout << "  timestamp, library, collective, data_type, message_size_bytes, message_size_elements, num_ranks, rank, hostname, node_id, total_nodes, is_multi_node, run_id, gpu_mode, test_passed, time_ms" << std::endl;
             }
-
-                
-            // T define the data type used for the collective operation
-            template <typename T>
-            struct ProfilingInfo {
-                double time_ms;
-                size_t message_size_bytes;
-                double device_energy_mj; // in mj 
-                double host_energy_mj; // in mj
-                int global_rank;
-                int local_rank;
-                int num_ranks;
-                int run_id; // index of the current run
-                bool test_passed; // check the results of the collective operation
-                bool chain_size; // check the results of the collective operation
-                std::string gpu_mode; // composite or flat: only for intel GPUs
-            };
-
 
 
         };
