@@ -14,16 +14,20 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
+#include <typeinfo>
+
 
 namespace common {
     namespace logger {
-                    
+        namespace fs = std::filesystem;
+
         class Logger {
         private:
-            std::string output_dir;
+            std::string output_file_path;
             std::string library_name;
             std::string collective_name;
             std::string gpu_mode = "gpu";
+            
             int run_id;
             int mpi_rank;
 
@@ -114,132 +118,65 @@ namespace common {
             }
 
         
-            std::string get_filename(const std::string& data_type, size_t message_size_elements) const {
-                return output_dir + "/" + library_name + "_" + collective_name + "_" +
-                    data_type + "_" + std::to_string(message_size_elements) + "_results.csv";
-            }
+         
             
             void ensure_directory_exists() const {
-                if (!output_dir.empty()) {
-                    std::filesystem::create_directories(output_dir);
+                fs::path path(output_file_path);
+                // Get the parent directory of the file
+                fs::path dir = path.parent_path();
+
+                if (!dir.empty() && !fs::exists(dir)) {
+                    // Create directories recursively
+                    if (fs::create_directories(dir)) {
+                        std::cout << "Created path: " << dir << "\n";
+                    } else {
+                        std::cerr << "Failed to create path: " << dir << "\n";
+                    }
                 }
             }
             
             bool file_exists(const std::string& filename) const {
-                return std::filesystem::exists(filename);
+                return fs::exists(filename);
             }
-            
-            int get_next_run_id() const {
-                if (output_dir.empty()) {
-                    return 1; // Se non c'è output directory, usa sempre run_id = 1
-                }
-                
-                // Cerca tutti i file CSV esistenti per determinare il prossimo run_id
-                int max_run_id = 0;
-                try {
-                    for (const auto& entry : std::filesystem::directory_iterator(output_dir)) {
-                        if (entry.is_regular_file() && entry.path().extension() == ".csv") {
-                            std::string filename = entry.path().filename().string();
-                            // Controlla se il file appartiene a questo logger (stesso library e collective)
-                            std::string expected_prefix = library_name + "_" + collective_name + "_";
-                            if (filename.find(expected_prefix) == 0) {
-                                // Leggi il file per trovare il run_id massimo
-                                int file_max_run = get_max_run_id_from_file(entry.path().string());
-                                max_run_id = std::max(max_run_id, file_max_run);
-                            }
-                        }
-                    }
-                } catch (const std::filesystem::filesystem_error&) {
-                    // Se c'è un errore nell'accesso alla directory, usa run_id = 1
-                    return 1;
-                }
-                
-                return max_run_id + 1;
-            }
-            
-            int get_max_run_id_from_file(const std::string& filename) const {
-                std::ifstream file(filename);
-                if (!file.is_open()) {
-                    return 0;
-                }
-                
-                std::string line;
-                int max_run_id = 0;
-                bool first_line = true;
-                
-                while (std::getline(file, line)) {
-                    if (first_line) {
-                        first_line = false;
-                        continue; // Salta l'header
-                    }
-                    
-                    // Trova la colonna run_id (posizione 12, 0-indexed - aggiornato per le nuove colonne)
-                    std::stringstream ss(line);
-                    std::string token;
-                    int column = 0;
-                    
-                    while (std::getline(ss, token, ',') && column <= 12) {
-                        if (column == 12) { // Colonna run_id (aggiornata)
-                            try {
-                                int run_id = std::stoi(token);
-                                max_run_id = std::max(max_run_id, run_id);
-                            } catch (const std::exception&) {
-                                // Ignora righe malformate
-                            }
-                            break;
-                        }
-                        column++;
-                    }
-                }
-                
-                return max_run_id;
-            }
-            
+
             void write_header(std::ofstream& file) const {
-                file << "timestamp,library,collective,data_type,message_size_bytes,message_size_elements,num_ranks,rank,hostname,node_id,total_nodes,is_multi_node,run_id,gpu_mode,test_passed,time_ms\n";
+                file << "library,collective,data_type,message_size_bytes,message_size_elements,num_ranks,global_rank,local_rank,hostname,node_id,total_nodes,is_multi_node,run_id,gpu_mode,test_passed,chain_size,total_time_ms,time_ms_1coll,total_device_energy_mj,device_energy_mj_1coll,total_host_energy_mj,host_energy_mj_1coll,goodput_Gb_per_s\n";
             }
 
         public:
-            Logger(const std::string& output_dir, const std::string& library_name, const std::string& collective_name, const std::string& gpu_mode = "gpu")
-                : output_dir(output_dir), library_name(library_name), collective_name(collective_name), gpu_mode(gpu_mode) {
+            Logger(const std::string& output_file_path, const std::string& library_name, const std::string& collective_name, const std::string& gpu_mode = "composite")
+                : output_file_path(output_file_path), library_name(library_name), collective_name(collective_name), gpu_mode(gpu_mode) {
                 ensure_directory_exists();
                 initialize_node_info();
-                // set default prefix based on library
-                if (library_name.find("nccl") != std::string::npos || library_name.find("NCCL") != std::string::npos)
-                    // env_var_prefix = "NCCL_";
-                    ;
-                else if (library_name.find("ccl") != std::string::npos || library_name.find("CCL") != std::string::npos)
-                    // env_var_prefix = "CCL_";
-                    ;
-                else
-                    // env_var_prefix = "NCCL_"; // fallback
-                    ;
-                // env_vars = capture_env();
-                run_id = get_next_run_id();
-            }
-            // optionally override which prefix to capture
-            void set_env_prefix(const std::string& prefix) {
-                // env_var_prefix = prefix;
-                // env_vars = capture_env();
             }
             
-            void log_result(const std::string& data_type, size_t message_size_elements, int num_ranks, int rank, bool test_passed, double time_ms) {
+            template<typename T>
+            void log_result(common::logger::ProfilingInfo<T> info){
+                /* 
+                   For each message size we execute multiple times the same collective "c" so that we have a chain like this c_1, c_2, ... c_m, where m=chain_size.
+                   The ProfilingInfo struct contains the time in ms and energy in mJ for the execution of the whole chain c_1, c_2, ... c_m,
+                   To measure the time and energy of a single collective we devide time_ms and {device,host}_energy_mj with chain_size.
+                */
+                double time_ms_1coll = info.time_ms / info.chain_size; 
+                double device_energy_mj_1coll = info.device_energy_mj / info.chain_size; 
+                double host_energy_mj_1coll = info.host_energy_mj / info.chain_size; 
+                double data_Gb = static_cast<double>(info.message_size_bytes) / 1.25e+8;
+                double goodput_Gb_per_s = data_Gb / (time_ms_1coll / 1000); // Gigabit per seconds 
+
                 if (output_dir.empty()) {
-                    // Se non è specificato un output directory, non loggare su file
+                    std::cerr << "Output directory is not defined" <<std::endl;
                     return;
                 }
+
+                std::string filename = output_file_path;
                 
-                std::string filename = get_filename(data_type, message_size_elements);
-                
-                // Sincronizzazione MPI per gestire la scrittura dell'header
-                // Solo il rank 0 controlla e scrive l'header se necessario
+                // Only rank 0 write the csv header 
                 int needs_header = 0;
                 if (rank == 0) {
                     bool is_new_file = !file_exists(filename);
                     needs_header = is_new_file ? 1 : 0;
                 }
-                
-                // Broadcast del flag header a tutti i rank
+
                 MPI_Bcast(&needs_header, 1, MPI_INT, 0, MPI_COMM_WORLD);
                 
                 // Solo il rank 0 scrive l'header se necessario
@@ -250,57 +187,61 @@ namespace common {
                         header_file.close();
                     }
                 }
-                
-                // Sincronizzazione per assicurare che l'header sia scritto prima dei dati
+
                 MPI_Barrier(MPI_COMM_WORLD);
                 
-                // Ora tutti i rank possono scrivere i loro dati
                 std::ofstream file(filename, std::ios::app);
                 if (!file.is_open()) {
                     std::cerr << "Warning: Could not open log file: " << filename << std::endl;
                     return;
                 }
                 
-                // Calcola la dimensione in bytes (approssimativa)
-                size_t element_size = 0;
-                if (data_type == "int") element_size = sizeof(int);
-                else if (data_type == "float") element_size = sizeof(float);
-                else if (data_type == "double") element_size = sizeof(double);
-                
-                size_t message_size_bytes = message_size_elements * element_size;
-                
+
+              
+                // Adde energy for each rank, then add also another line for avg time and energy for all the ranks
                 // Scrivi la riga di dati
-                file << get_timestamp() << ","
-                    << library_name << ","
+                file << library_name << ","
                     << collective_name << ","
-                    << data_type << ","
-                    << message_size_bytes << ","
-                    << message_size_elements << ","
-                    << num_ranks << ","
-                    << rank << ","
+                    << typeid(T).name() << ","
+                    << info.message_size_bytes << ","
+                    << info.message_size_bytes /  sizeof(T) << ","
+                    << info.num_ranks << ","
+                    << info.global_ranks << "," // can be 0 to num_ranks or aggregate
+                    << info.local_ranks << "," // can be 0 to num_ranks or aggregate
                     << hostname << ","
                     << node_id << ","
-                << total_nodes << ","
-                << (is_multi_node ? "true" : "false") << ","
-                << run_id << ","
-                << gpu_mode << ","
-                << (test_passed ? "true" : "false") << ","
-                << std::fixed << std::setprecision(3) << time_ms << "\n";
-                
+                    << total_nodes << ","
+                    << (is_multi_node ? "true" : "false") << ","
+                    << info.run_id << "," 
+                    << gpu_mode << "," // Only for Intel GPUs
+                    << (info.test_passed ? "true" : "false") << ","
+                    << info.chain_size << ","
+                    << std::fixed << std::setprecision(3) << info.time_ms  << ","
+                    << std::fixed << std::setprecision(3) << time_ms_1coll  << ","
+                    << std::fixed << std::setprecision(3) << info.device_energy_mj  << ","
+                    << std::fixed << std::setprecision(3) << device_energy_mj_1coll  << ","
+                    << std::fixed << std::setprecision(3) << info.host_energy_mj  << ","
+                    << std::fixed << std::setprecision(3) << host_energy_mj_1coll  << ","
+                    << std::fixed << std::setprecision(3) << goodput_Gb_per_s  << "\n";
+                    // TODO: change header file
+                    // TODO: Add tuple (power, timestamp) we can parse the tuple so that we have only the different power measurement so that we know that from timestamp x to y we have the same power
+                   
+                    
                 file.close();
-                
-                // Log anche su console per debug
+
+
+                 // Log anche su console per debug
                 std::cout << "[LOG] " << library_name << " " << collective_name 
-                        << " " << data_type << " size=" << message_size_elements 
+                        << " " << typeid(T).name() 
+                        << " bytes=" << info.message_size_bytes 
+                        << " size=" << info.message_size_bytes / sizeof(T) 
+                        << " ranks=" << info.num_ranks 
                         << " rank=" << rank << " hostname=" << hostname << " node=" << node_id
-                        << " run=" << run_id << " gpu_mode=" << gpu_mode << " passed=" << (test_passed ? "true" : "false")
-                        << " time=" << time_ms << "ms" << " -> " << filename << std::endl;
+                        << " run=" << info.run_id << " gpu_mode=" << info.gpu_mode << " passed=" << (info.test_passed ? "true" : "false")
+                        << " time=" << time_ms_1coll << "ms" << " -> " << filename << std::endl;
             }
+          
             
-            // Metodo per impostare manualmente il run_id (opzionale)
-            void set_run_id(int new_run_id) {
-                run_id = new_run_id;
-            }
             
             // Metodi getter per le nuove informazioni sui nodi
             const std::string& get_hostname() const { return hostname; }
@@ -308,10 +249,7 @@ namespace common {
             int get_total_nodes() const { return total_nodes; }
             bool get_is_multi_node() const { return is_multi_node; }
             
-            // Metodo per ottenere il run_id corrente
-            int get_run_id() const {
-                return run_id;
-            }
+         
             
             static void print_usage() {
                 std::cout << "\nLogger Usage:" << std::endl;
@@ -320,6 +258,26 @@ namespace common {
                 std::cout << "\nOutput format: CSV files with columns:" << std::endl;
                 std::cout << "  timestamp, library, collective, data_type, message_size_bytes, message_size_elements, num_ranks, rank, hostname, node_id, total_nodes, is_multi_node, run_id, gpu_mode, test_passed, time_ms" << std::endl;
             }
+
+                
+            // T define the data type used for the collective operation
+            template <typename T>
+            struct ProfilingInfo {
+                double time_ms;
+                size_t message_size_bytes;
+                double device_energy_mj; // in mj 
+                double host_energy_mj; // in mj
+                int global_rank;
+                int local_rank;
+                int num_ranks;
+                int run_id; // index of the current run
+                bool test_passed; // check the results of the collective operation
+                bool chain_size; // check the results of the collective operation
+                std::string gpu_mode; // composite or flat: only for intel GPUs
+            };
+
+
+
         };
     } // end namespace logger
 } // end namespace common
