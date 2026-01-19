@@ -22,7 +22,7 @@
 
 namespace log = common::logger; // define logger namespace abbreviation
 namespace data_types = common::utils::data_types; // define data_types namespace abbreviation
-
+namespace prof_data_types = profiler::data_types; // define profiler::data_types namespace abbreviation
 using Comm = data_types::CommWrapper<>::type;  // automaticall select ccl::communicator at compile time accroding to the defined macro USE_ONECCL
 
 template<typename T>
@@ -89,18 +89,17 @@ void run(intel::utils::OneCCLContext& ctx, std::string& power_log_path){
     auto mem_cpy_t_start = std::chrono::high_resolution_clock::now();
     q.memcpy(h_sendbuf, d_sendbuf, buff_size_byte[num_iters-1]).wait();
     auto mem_cpy_t_end = std::chrono::high_resolution_clock::now();
-
+    
     for (int i = 0; i < num_iters; i++) {
         int chain_size = 0; //  num of times that a collective is executed 
         int host_energy_counter=MAX_RUN;
         for (int run = 0; run < MAX_RUN; run++) {
             double a2a_time_max = 0;
             chain_size = 0;
-            //TODO: PowerProfier save power data and corrsipective timestamp into a csv file. We can store the results into a vector of tuple (power,timestamp) 
-            // then parse the tuple by removing all the consecutive element for which the power remain the same so that the resulting 
+            
             // std::string power_file = power_log_path + "/ar_nccl_" + std::to_string(buff_size_byte[i]) + "B"+"_rank"+ std::to_string(rank) + ".pow";
             std::string power_file = power_log_path + "_" + std::to_string(buff_size_byte[i]) + "B"+"_rank"+ std::to_string(rank) + ".pow";
-            PowerProfiler powerProf(rank % numGPUs, POWER_SAMPLING_RATE_MS, power_file);
+            profiler::PowerProfiler powerProf(rank % numGPUs, POWER_SAMPLING_RATE_MS, power_file);
             powerProf.start();
             int64_t a2a_time_per_rank=0; // Store the time spent for each rank to complete the collective
             while (a2a_time_max < (TIME_TO_ACHIEVE_MS * 1000)) {
@@ -121,10 +120,15 @@ void run(intel::utils::OneCCLContext& ctx, std::string& power_log_path){
            
             powerProf.stop();
             
-            double dev_energy_mj = powerProf.get_device_energy(); //device energy in mj for one collective run for the current rank
-            
+            prof_data_types::energy_t dev_energy_uj = powerProf.get_device_energy(); //device energy in uj for one collective run for the current rank
+            double time_ms = static_cast<double>(a2a_time_per_rank) / 1000.0; // time in ms for the current rank
+            double dev_energy_mj = static_cast<double>(dev_energy_uj) / 1000.0; // device energy in mj for the current rank
+            // host energy is 0 now
+            log::Logger::ProfilingInfo<T> prof_info{time_ms, buff_size_byte[i], dev_energy_mj, 0.0, ctx.global_rank, ctx.local_rank, ctx.global_rank_size, run, true, chain_size, "composite"};  
+            csv_log.log_result<T>(prof_info);
             //TODO: add support for host energy
-            // double host_energy_mj = powerProf.get_host_energy() / static_cast<double>(chain_size); //host energy in mj for one collective run        
+            // double host_energy_mj = powerProf.get_host_energy() / static_cast<double>(chain_size); //host energy in mj for one collective run 
+
         }
     }
    
