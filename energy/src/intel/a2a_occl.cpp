@@ -13,9 +13,9 @@
 #include "../../energy-profiler/include/profiler/power_profiler.hpp"
 #include <vector>
 
-#define MAX_RUN 2
+#define MAX_RUN 5
 #define WARM_UP_RUN 5
-#define TIME_TO_ACHIEVE_S 1
+#define TIME_TO_ACHIEVE_S 10
 #define POWER_SAMPLING_RATE_MS 5
 #define MAX_BUF 100
 #define MESSAGE_SIZE_FACTOR 16
@@ -104,8 +104,7 @@ void run(intel::utils::OneCCLContext& ctx, std::string& power_log_path){
             chain_size = 0;
             
             // std::string power_file = power_log_path + "/ar_nccl_" + std::to_string(buff_size_byte[i]) + "B"+"_rank"+ std::to_string(rank) + ".pow";
-            std::string power_file = power_log_path + "/a2a_occl_" + std::to_string(buff_size_byte[i]) + "B"+"_rank"+ std::to_string(rank) + ".pow";
-            profiler::PowerProfiler powerProf(rank % numGPUs, POWER_SAMPLING_RATE_MS, power_file);
+            profiler::PowerProfiler powerProf(rank % numGPUs, POWER_SAMPLING_RATE_MS);
             powerProf.start();
             int64_t a2a_time_per_rank=0; // Store the time spent for each rank to complete the collective
             while (a2a_time_max < (TIME_TO_ACHIEVE_S * 1000)) {
@@ -134,7 +133,11 @@ void run(intel::utils::OneCCLContext& ctx, std::string& power_log_path){
             }
             // host energy is 0 now
             log::Logger::ProfilingInfo<T> prof_info{time_ms, buff_size_byte[i], dev_energy_mj, 0.0, ctx.global_rank, ctx.local_rank, ctx.global_rank_size, run, true, chain_size, "composite"};  
-            csv_log.log_result<T>(prof_info);
+            prof_data_types::power_trace_t power_trace = powerProf.get_power_execution_data(); // get power trace data and store it internally in the power_prof object
+            std::string power_trace_str = prof_data_types::power_trace_to_string(power_trace);
+            log::CsvField power_trace_field{"power_trace", power_trace_str};
+            csv_log.log_result<T>(prof_info, power_trace_field); 
+            
             //TODO: add support for host energy
             // double host_energy_mj = powerProf.get_host_energy() / static_cast<double>(chain_size); //host energy in mj for one collective run 
 

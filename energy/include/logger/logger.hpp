@@ -19,10 +19,34 @@
 
 namespace common {
     namespace logger {
+
         namespace fs = std::filesystem;
+        // Utility struct to represent a single field in the CSV log
+        // Used to build dynamic CSV rows with extra fields if needed
+        struct CsvField {
+            std::string key;
+            std::string value;
+
+            template<typename T>
+            CsvField(std::string k, T&& v)
+                    : key(std::move(k))
+                    , value(to_string(std::forward<T>(v))) {}
+
+                private:
+                    static std::string to_string(const std::string& v) { return v; }
+                    static std::string to_string(const char* v) { return v; }
+
+                    template<typename T>
+                    static std::string to_string(T v) {
+                        std::ostringstream oss;
+                        oss << v;
+                        return oss.str();
+                    }
+                };
 
         class Logger {
         private:
+        
             std::string output_file_path;
             std::string library_name;
             std::string collective_name;
@@ -139,8 +163,12 @@ namespace common {
                 return fs::exists(filename);
             }
 
-            void write_header(std::ofstream& file) const {
-                file << "library,collective,data_type,message_size_bytes,message_size_elements,num_ranks,global_rank,local_rank,hostname,node_id,total_nodes,is_multi_node,run_id,gpu_mode,test_passed,chain_size,total_time_ms,time_ms_1coll,total_device_energy_mj,device_energy_mj_1coll,total_host_energy_mj,host_energy_mj_1coll,goodput_Gb_per_s\n";
+            void write_header(std::ofstream& file, const std::vector<CsvField>& extras = {}) const {
+                file << "library,collective,data_type,message_size_bytes,message_size_elements,num_ranks,global_rank,local_rank,hostname,node_id,total_nodes,is_multi_node,run_id,gpu_mode,test_passed,chain_size,total_time_ms,time_ms_1coll,total_device_energy_mj,device_energy_mj_1coll,total_host_energy_mj,host_energy_mj_1coll,goodput_Gb_per_s";
+                for (const auto& f : extras)
+                    file << "," << f.key;
+
+                file << "\n";
             }
 
         public:
@@ -166,14 +194,16 @@ namespace common {
                 std::string gpu_mode; // composite or flat: only for intel GPUs
             };
 
-
-            template<typename T>
-            void log_result(ProfilingInfo<T> info){
+            // The log interface take as input ProfilingInfo but we can also add other fields to the csv as ExtraFields...
+            template<typename T, typename... ExtraFields>
+            void log_result(const ProfilingInfo<T>& info, ExtraFields&&... extras){
                 /* 
                    For each message size we execute multiple times the same collective "c" so that we have a chain like this c_1, c_2, ... c_m, where m=chain_size.
                    The ProfilingInfo struct contains the time in ms and energy in mJ for the execution of the whole chain c_1, c_2, ... c_m,
                    To measure the time and energy of a single collective we devide time_ms and {device,host}_energy_mj with chain_size.
                 */
+               std::vector<CsvField> extra_fields{ std::forward<ExtraFields>(extras)... };
+
                 double time_ms_1coll = info.time_ms / info.chain_size; 
                 double device_energy_mj_1coll = info.device_energy_mj / info.chain_size; 
                 double host_energy_mj_1coll = info.host_energy_mj / info.chain_size; 
@@ -196,7 +226,7 @@ namespace common {
                 if (needs_header && info.global_rank == 0) {
                     std::ofstream header_file(filename, std::ios::app);
                     if (header_file.is_open()) {
-                        write_header(header_file);
+                        write_header(header_file, extra_fields);
                         header_file.close();
                     }
                 }
@@ -235,7 +265,13 @@ namespace common {
                     << std::fixed << std::setprecision(3) << device_energy_mj_1coll  << ","
                     << std::fixed << std::setprecision(3) << info.host_energy_mj  << ","
                     << std::fixed << std::setprecision(3) << host_energy_mj_1coll  << ","
-                    << std::fixed << std::setprecision(3) << goodput_Gb_per_s  << "\n";
+                    << std::fixed << std::setprecision(3) << goodput_Gb_per_s;
+                    
+                    // Write extra fields if any
+                    for (const auto& f : extra_fields)
+                        file << "," << f.value;
+                    
+                    file << "\n";
                     // TODO: change header file
                     // TODO: Add tuple (power, timestamp) we can parse the tuple so that we have only the different power measurement so that we know that from timestamp x to y we have the same power
                    

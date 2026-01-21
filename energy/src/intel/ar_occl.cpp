@@ -13,9 +13,9 @@
 #include "../../energy-profiler/include/profiler/power_profiler.hpp"
 #include <vector>
 
-#define MAX_RUN 2
+#define MAX_RUN 5
 #define WARM_UP_RUN 5
-#define TIME_TO_ACHIEVE_S 1
+#define TIME_TO_ACHIEVE_S 10
 #define POWER_SAMPLING_RATE_MS 5
 #define MAX_BUF 100
 #define MESSAGE_SIZE_FACTOR 16
@@ -64,21 +64,21 @@ void run(intel::utils::OneCCLContext& ctx, std::string& power_log_path){
 
     // create dependencies vector: can be used in the collective to ensure that consecutive call to the collective are exectude in order
     std::vector<ccl::event> deps;
-    auto attr = ccl::create_operation_attr<ccl::alltoall_attr>();
+    auto attr = ccl::create_operation_attr<ccl::allreduce_attr>();
 
 
     // allocate host pointer
     T *h_sendbuf = (T *)malloc(buff_size_byte[num_iters - 1]);
     T *h_recvbuf = (T *)malloc(buff_size_byte[num_iters - 1]);
     if (rank == 0) {
-        std::cout<< "Warm up run for alltoall" << std::endl;    
+        std::cout<< "Warm up run for allreduce" << std::endl;    
     }
     
     for (int i = 0; i < WARM_UP_RUN; i++) {
-        q.memcpy(h_sendbuf, d_sendbuf, buff_size_byte[0]).wait();
+        q.memcpy(h_sendbuf, d_sendbuf, buff_size_byte[num_iters-1]).wait();
 
         auto start = std::chrono::high_resolution_clock::now();
-        ccl::alltoall(d_sendbuf, d_recvbuf,  buff_size_byte[0] / sizeof(T), comm, stream, attr, deps).wait();
+        ccl::allreduce(d_sendbuf, d_recvbuf,  buff_size_byte[num_iters-1] / sizeof(T), ccl::reduction::sum, comm, stream, attr, deps).wait();
 
         auto end = std::chrono::high_resolution_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -98,43 +98,45 @@ void run(intel::utils::OneCCLContext& ctx, std::string& power_log_path){
         int host_energy_counter=MAX_RUN;
         for (int run = 0; run < MAX_RUN; run++) {
             if (rank == 0) {
-                std::cout<< "Run " << run << " for alltoall with message size "<< buff_size_byte[i] << " B" << std::endl;    
+                std::cout<< "Run " << run << " for allreduce with message size "<< buff_size_byte[i] << " B" << std::endl;    
             }
-            double a2a_time_max = 0;
+            double ar_time_max = 0;
             chain_size = 0;
             
-            // std::string power_file = power_log_path + "/ar_nccl_" + std::to_string(buff_size_byte[i]) + "B"+"_rank"+ std::to_string(rank) + ".pow";
-            std::string power_file = power_log_path + "/a2a_occl_" + std::to_string(buff_size_byte[i]) + "B"+"_rank"+ std::to_string(rank) + ".pow";
-            profiler::PowerProfiler powerProf(rank % numGPUs, POWER_SAMPLING_RATE_MS, power_file);
+            profiler::PowerProfiler powerProf(rank % numGPUs, POWER_SAMPLING_RATE_MS);
             powerProf.start();
-            int64_t a2a_time_per_rank=0; // Store the time spent for each rank to complete the collective
-            while (a2a_time_max < (TIME_TO_ACHIEVE_S * 1000)) {
+            int64_t ar_time_per_rank=0; // Store the time spent for each rank to complete the collective
+            while (ar_time_max < (TIME_TO_ACHIEVE_S * 1000)) {
                 auto start_s = std::chrono::high_resolution_clock::now();
                 
-                ccl::alltoall(d_sendbuf, d_recvbuf, (buff_size_byte[i] / sizeof(T)) , comm, stream, attr, deps).wait();
+                ccl::allreduce(d_sendbuf, d_recvbuf,  buff_size_byte[i] / sizeof(T), ccl::reduction::sum, comm, stream, attr, deps).wait();
 
                 auto end_s = std::chrono::high_resolution_clock::now();
                 // Time to solution of the current rank
                 int64_t single_run_us = std::chrono::duration_cast<std::chrono::microseconds>(end_s - start_s).count();
-                a2a_time_per_rank+=single_run_us;
+                ar_time_per_rank+=single_run_us;
 
                 // Time to solution to complete the collective 
                 MPI_Allreduce(MPI_IN_PLACE, &single_run_us, 1, MPI_LONG_LONG, MPI_MAX, MPI_COMM_WORLD); // Max time to solution
-                a2a_time_max += static_cast<double>(single_run_us) / 1000.0; // in ms 
+                ar_time_max += static_cast<double>(single_run_us) / 1000.0; // in ms 
                 chain_size++;
             }
            
             powerProf.stop();
             
             prof_data_types::energy_t dev_energy_uj = powerProf.get_device_energy(); //device energy in uj for one collective run for the current rank
-            double time_ms = static_cast<double>(a2a_time_per_rank) / 1000.0; // time in ms for the current rank
+            double time_ms = static_cast<double>(ar_time_per_rank) / 1000.0; // time in ms for the current rank
             double dev_energy_mj = static_cast<double>(dev_energy_uj) / 1000.0; // device energy in mj for the current rank
             if (rank == 0) {
                 std::cout << "[RESULT] Writing in logger file ..." << std::endl;
             }
             // host energy is 0 now
             log::Logger::ProfilingInfo<T> prof_info{time_ms, buff_size_byte[i], dev_energy_mj, 0.0, ctx.global_rank, ctx.local_rank, ctx.global_rank_size, run, true, chain_size, "composite"};  
-            csv_log.log_result<T>(prof_info);
+            prof_data_types::power_trace_t power_trace = powerProf.get_power_execution_data(); // get power trace data and store it internally in the power_prof object
+            std::string power_trace_str = prof_data_types::power_trace_to_string(power_trace);
+            log::CsvField power_trace_field{"power_trace", power_trace_str};
+            csv_log.log_result<T>(prof_info, power_trace_field); 
+            
             //TODO: add support for host energy
             // double host_energy_mj = powerProf.get_host_energy() / static_cast<double>(chain_size); //host energy in mj for one collective run 
 
