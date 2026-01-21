@@ -153,7 +153,7 @@ namespace common {
              // T define the data type used for the collective operation
             template <typename T>
             struct ProfilingInfo {
-                double time_ms;
+                double time_ms; // time to solution of the rank to execute the specified collective in ms
                 size_t message_size_bytes;
                 double device_energy_mj; // in mj 
                 double host_energy_mj; // in mj
@@ -162,7 +162,7 @@ namespace common {
                 int num_ranks;
                 int run_id; // index of the current run
                 bool test_passed; // check the results of the collective operation
-                bool chain_size; // check the results of the collective operation
+                int chain_size; // check the results of the collective operation
                 std::string gpu_mode; // composite or flat: only for intel GPUs
             };
 
@@ -219,8 +219,8 @@ namespace common {
                     << info.message_size_bytes << ","
                     << info.message_size_bytes /  sizeof(T) << ","
                     << info.num_ranks << ","
-                    << info.global_ranks << "," // can be 0 to num_ranks or aggregate
-                    << info.local_ranks << "," // can be 0 to num_ranks or aggregate
+                    << info.global_rank << "," // can be 0 to num_ranks or aggregate
+                    << info.local_rank << "," // can be 0 to num_ranks or aggregate
                     << hostname << ","
                     << node_id << ","
                     << total_nodes << ","
