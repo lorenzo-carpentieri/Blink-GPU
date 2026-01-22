@@ -13,12 +13,12 @@
 #include "../../energy-profiler/include/profiler/power_profiler.hpp"
 #include <vector>
 
-#define MAX_RUN 5
+#define MAX_RUN 1
 #define WARM_UP_RUN 5
-#define TIME_TO_ACHIEVE_S 10
+#define TIME_TO_ACHIEVE_S 1
 #define POWER_SAMPLING_RATE_MS 5
 #define MAX_BUF 100
-#define MESSAGE_SIZE_FACTOR 16
+#define MESSAGE_SIZE_FACTOR 32
 
 namespace log = common::logger; // define logger namespace abbreviation
 namespace data_types = common::utils::data_types; // define data_types namespace abbreviation
@@ -29,6 +29,12 @@ template<typename T>
 void run(intel::utils::OneCCLContext& ctx, std::string& power_log_path){ 
 
     sycl::queue q = ctx.q; // sycl queue
+
+    sycl::device dev = q.get_device();
+    auto total_mem = dev.get_info<sycl::info::device::global_mem_size>();
+    std::cout << "Total global memory on device: " << total_mem << " bytes" << std::endl;
+    //TODO: check if total_mem is enough for the buffers allocation
+
     ccl::stream stream =std::move(*ctx.stream); // ccl stream
     Comm comm = std::move(*ctx.comm);
     log::Logger csv_log = std::move(*ctx.logger);
@@ -78,7 +84,7 @@ void run(intel::utils::OneCCLContext& ctx, std::string& power_log_path){
         q.memcpy(h_sendbuf, d_sendbuf, buff_size_byte[0]).wait();
 
         auto start = std::chrono::high_resolution_clock::now();
-        ccl::alltoall(d_sendbuf, d_recvbuf,  buff_size_byte[0] / sizeof(T), comm, stream, attr, deps).wait();
+        ccl::alltoall(d_sendbuf, d_recvbuf,  ((buff_size_byte[0] / sizeof(T) )/ ctx.global_rank_size), comm, stream, attr, deps).wait();
 
         auto end = std::chrono::high_resolution_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -110,7 +116,7 @@ void run(intel::utils::OneCCLContext& ctx, std::string& power_log_path){
             while (a2a_time_max < (TIME_TO_ACHIEVE_S * 1000)) {
                 auto start_s = std::chrono::high_resolution_clock::now();
                 
-                ccl::alltoall(d_sendbuf, d_recvbuf, (buff_size_byte[i] / sizeof(T)) , comm, stream, attr, deps).wait();
+                ccl::alltoall(d_sendbuf, d_recvbuf, ((buff_size_byte[i] / sizeof(T) ) / ctx.global_rank_size) , comm, stream, attr, deps).wait();
 
                 auto end_s = std::chrono::high_resolution_clock::now();
                 // Time to solution of the current rank
@@ -164,10 +170,7 @@ int main(int argc, char *argv[]) {
         csv_log_path = argv[2];
     }
 
-    std::cerr << "[DEBUG] Power log path: " << power_log_path << std::endl;
-    std::cerr << "[DEBUG] CSV log path: " << csv_log_path << std::endl;
-    std::cerr << "[DEBUG] Initialize MPI with oneCCL ...: " << std::endl;
-
+    
     intel::utils::OneCCLContext ctx = intel::utils::init_oneccl(csv_log_path,"a2a", intel::utils::GPUMode::Composite); // initialize oneCCL and MPI
 
     // Run with different data type
