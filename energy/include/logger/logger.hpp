@@ -151,10 +151,11 @@ namespace common {
 
                 if (!dir.empty() && !fs::exists(dir)) {
                     // Create directories recursively
-                    if (fs::create_directories(dir)) {
-                        std::cout << "Created path: " << dir << "\n";
-                    } else {
-                        std::cerr << "Failed to create path: " << dir << "\n";
+                    try {
+                        fs::create_directories(dir); // returns true/false
+                        std::cout << "Directory exists or created: " << dir << "\n";
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error creating directory: " << dir << " -> " << e.what() << "\n";
                     }
                 }
             }
@@ -233,61 +234,55 @@ namespace common {
 
                 MPI_Barrier(MPI_COMM_WORLD);
                 
-                std::ofstream file(filename, std::ios::app);
-                if (!file.is_open()) {
-                    std::cerr << "Warning: Could not open log file: " << filename << std::endl;
-                    return;
+                for (int r = 0; r < info.num_ranks; r++) {
+                    if (r == info.global_rank) {
+                        std::ofstream file(filename, std::ios::app);
+                        if (!file.is_open()) {
+                            std::cerr << "Warning: Could not open log file: " << filename << std::endl;
+                            return;
+                        }
+                        
+
+                    
+                        // Adde energy for each rank, then add also another line for avg time and energy for all the ranks
+                        // Scrivi la riga di dati
+                        file << library_name << ","
+                            << collective_name << ","
+                            << typeid(T).name() << ","
+                            << info.message_size_bytes << ","
+                            << info.message_size_bytes /  sizeof(T) << ","
+                            << info.num_ranks << ","
+                            << info.global_rank << "," // can be 0 to num_ranks or aggregate
+                            << info.local_rank << "," // can be 0 to num_ranks or aggregate
+                            << hostname << ","
+                            << node_id << ","
+                            << total_nodes << ","
+                            << (is_multi_node ? "true" : "false") << ","
+                            << info.run_id << "," 
+                            << gpu_mode << "," // Only for Intel GPUs
+                            << (info.test_passed ? "true" : "false") << ","
+                            << info.chain_size << ","
+                            << std::fixed << std::setprecision(6) << info.time_ms  << ","
+                            << std::fixed << std::setprecision(6) << time_ms_1coll  << ","
+                            << std::fixed << std::setprecision(3) << info.device_energy_mj  << ","
+                            << std::fixed << std::setprecision(3) << device_energy_mj_1coll  << ","
+                            << std::fixed << std::setprecision(3) << info.host_energy_mj  << ","
+                            << std::fixed << std::setprecision(3) << host_energy_mj_1coll  << ","
+                            << std::fixed << std::setprecision(6) << goodput_Gb_per_s;
+                            
+                            // Write extra fields if any
+                            for (const auto& f : extra_fields)
+                                file << "," << f.value;
+                            
+                            file << "\n";
+                            
+                        file.close();
+
+                    }
+                    
+                    MPI_Barrier(MPI_COMM_WORLD);
+
                 }
-                
-
-              
-                // Adde energy for each rank, then add also another line for avg time and energy for all the ranks
-                // Scrivi la riga di dati
-                file << library_name << ","
-                    << collective_name << ","
-                    << typeid(T).name() << ","
-                    << info.message_size_bytes << ","
-                    << info.message_size_bytes /  sizeof(T) << ","
-                    << info.num_ranks << ","
-                    << info.global_rank << "," // can be 0 to num_ranks or aggregate
-                    << info.local_rank << "," // can be 0 to num_ranks or aggregate
-                    << hostname << ","
-                    << node_id << ","
-                    << total_nodes << ","
-                    << (is_multi_node ? "true" : "false") << ","
-                    << info.run_id << "," 
-                    << gpu_mode << "," // Only for Intel GPUs
-                    << (info.test_passed ? "true" : "false") << ","
-                    << info.chain_size << ","
-                    << std::fixed << std::setprecision(3) << info.time_ms  << ","
-                    << std::fixed << std::setprecision(3) << time_ms_1coll  << ","
-                    << std::fixed << std::setprecision(3) << info.device_energy_mj  << ","
-                    << std::fixed << std::setprecision(3) << device_energy_mj_1coll  << ","
-                    << std::fixed << std::setprecision(3) << info.host_energy_mj  << ","
-                    << std::fixed << std::setprecision(3) << host_energy_mj_1coll  << ","
-                    << std::fixed << std::setprecision(3) << goodput_Gb_per_s;
-                    
-                    // Write extra fields if any
-                    for (const auto& f : extra_fields)
-                        file << "," << f.value;
-                    
-                    file << "\n";
-                    // TODO: change header file
-                    // TODO: Add tuple (power, timestamp) we can parse the tuple so that we have only the different power measurement so that we know that from timestamp x to y we have the same power
-                   
-                    
-                file.close();
-
-
-                 // Log anche su console per debug
-                std::cout << "[LOG] " << library_name << " " << collective_name 
-                        << " " << typeid(T).name() 
-                        << " bytes=" << info.message_size_bytes 
-                        << " size=" << info.message_size_bytes / sizeof(T) 
-                        << " ranks=" << info.num_ranks 
-                        << " rank=" << info.global_rank << " hostname=" << hostname << " node=" << node_id
-                        << " run=" << info.run_id << " gpu_mode=" << info.gpu_mode << " passed=" << (info.test_passed ? "true" : "false")
-                        << " time=" << time_ms_1coll << "ms" << " -> " << filename << std::endl;
             }
           
             
