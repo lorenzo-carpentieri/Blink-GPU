@@ -1,6 +1,3 @@
-
-// You can use template paramter for specilize the funcition that run the collective with different data types
-//TODO: Test multi nodo per vedere se cambia qualcosa dal punto di vista delle performance e dell'energy
 #include <mpi.h>
 #include <cuda_runtime.h>
 #include "utils/nccl_data_type.hpp"
@@ -8,19 +5,31 @@
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
-#include "energy_profiler/power_profiler.hpp"
-
-#define MAX_RUN 5
-#define WARM_UP_RUN 5
-#define TIME_TO_ACHIEVE_MS 2000
-#define POWER_SAMPLING_RATE_MS 5
+#include "../../energy-profiler/include/profiler/power_profiler.hpp"
+#include "./utils/nccl_ctx.hpp"
+#define MAX_RUN 1
+#define WARM_UP_RUN 1
+#define TIME_TO_ACHIEVE_MS 10000
+#define POWER_SAMPLING_RATE_MS 40
 #define MAX_BUF 100
-#define MESSAGE_SIZE_FACTOR 4
+#define MESSAGE_SIZE_FACTOR 8
 
+namespace prof_data_types = profiler::data_types; // define profiler::data_types namespace abbreviation
+namespace clog = common::logger;
 
 template<typename T>
-void run(ncclComm_t& comm,int& rank, int& numGPUs, std::string& log_path, std::string& csv_path){ 
+void run(nvidia::utils::ncclContext& ctx){ 
     ncclDataType_t dtype = nccl_type_traits<T>::type; // define the mapping for T and nccl data type used in collectives
+
+    cudaStream_t stream = std::move(*ctx.stream); // ccl stream
+    ncclComm_t comm = std::move(*ctx.comm);
+    clog::Logger csv_log = std::move(*ctx.logger);
+
+    int rank = ctx.global_rank;
+    int numGPUs = ctx.local_rank_size;
+    int size = ctx.global_rank_size;
+
+    
 
     constexpr size_t ONE_GB = 1024 * 1024 * 1024;
     size_t *buff_size_byte = (size_t *)malloc(sizeof(size_t) * MAX_BUF);
@@ -34,32 +43,34 @@ void run(ncclComm_t& comm,int& rank, int& numGPUs, std::string& log_path, std::s
     }
 
     const int num_iters = i;
-
     T *d_sendbuf, *d_recvbuf;
     cudaMalloc((void **)&d_sendbuf, buff_size_byte[num_iters - 1]);
-    cudaMalloc((void **)&d_recvbuf, buff_size_byte[num_iters - 1]);
+    cudaMalloc((void **)&d_recvbuf, buff_size_byte[num_iters - 1] * size); // each rank sendbuff size bytes
 
     T *h_sendbuf = (T *)malloc(buff_size_byte[num_iters - 1]);
-    T *h_recvbuf = (T *)malloc(buff_size_byte[num_iters - 1]);
+    T *h_recvbuf = (T *)malloc(buff_size_byte[num_iters - 1] * size);
 
-    cudaStream_t stream;
     cudaStreamCreate(&stream);
 
     for (int i = 0; i < WARM_UP_RUN; i++) {
-        cudaMemcpy(h_sendbuf, d_sendbuf, buff_size_byte[0], cudaMemcpyDeviceToHost);
+        size_t count_el = buff_size_byte[num_iters-1] / sizeof(T);
+        
+        cudaMemcpy(h_sendbuf, d_sendbuf, buff_size_byte[num_iters-1], cudaMemcpyDeviceToHost);
         auto start = std::chrono::high_resolution_clock::now();
-        ncclAllReduce(d_sendbuf, d_recvbuf, (buff_size_byte[0] / sizeof(T)), dtype, ncclSum, comm, stream);
+        ncclGroupStart();
+        for (int r=0; r<size; r++) {
+            ncclSend(d_sendbuf, count_el, dtype, r, comm, stream);
+            ncclRecv(d_recvbuf + (r * count_el), count_el, dtype, r, comm, stream);          
+        }
+        ncclGroupEnd();
+
         cudaStreamSynchronize(stream);
+        MPI_Barrier(MPI_COMM_WORLD);
         auto end = std::chrono::high_resolution_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        cudaMemcpy(d_recvbuf, h_recvbuf, buff_size_byte[0], cudaMemcpyHostToDevice);
+        cudaMemcpy(d_recvbuf, h_recvbuf, buff_size_byte[num_iters-1] * size, cudaMemcpyHostToDevice);
     }
 
-    std::ofstream csv_file(csv_path, std::ios::app);  // use std::ios::app to append if the file exists
-    if (rank == 0){
-        // csv_file << "approach,run,data_type,chain_size,num_byte,mem_cpy_time_ms,time_ms,min_goodput_Gbs,device_energy,host_energy" << std::endl;
-        csv_file << "approach,run,data_type,chain_size,num_byte,mem_cpy_time_ms,time_ms,min_goodput_Gbs,device_energy" << std::endl;
-    }
 
     cudaMemset(d_sendbuf, rank, buff_size_byte[num_iters-1]);
     auto mem_cpy_t_start = std::chrono::high_resolution_clock::now();
@@ -67,76 +78,48 @@ void run(ncclComm_t& comm,int& rank, int& numGPUs, std::string& log_path, std::s
     auto mem_cpy_t_end = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < num_iters; i++) {
-        float avg_time_s = 0; // average execution time for on MAX_RUN for a collective 
-        int chain_size = 0; //  num of times that a collective is executed 
-        double avg_dev_energy_mj = 0;  // average device energy consumption
-        double avg_host_energy_mj = 0; // average host energy consumption
-        int host_energy_counter=MAX_RUN;
+        size_t count_el = buff_size_byte[i] / sizeof(T);
+        int chain_size = 0;
         for (int run = 0; run < MAX_RUN; run++) {
-            float ar_time = 0;
+            size_t a2a_time = 0;
+            size_t a2a_time_per_rank = 0;
             chain_size = 0;
-
-            // std::string power_file = log_path + "/ar_nccl_" + std::to_string(buff_size_byte[i]) + "B"+"_rank"+ std::to_string(rank) + ".pow";
-            std::string power_file = log_path + "_" + std::to_string(buff_size_byte[i]) + "B"+"_rank"+ std::to_string(rank) + ".pow";
-            PowerProfiler powerProf(rank % numGPUs, POWER_SAMPLING_RATE_MS, power_file);
+            profiler::PowerProfiler powerProf(rank % numGPUs, POWER_SAMPLING_RATE_MS);
             powerProf.start();
-            while (ar_time < (TIME_TO_ACHIEVE_MS * 1000)) {
+            while (a2a_time < (TIME_TO_ACHIEVE_MS * 1000)) { // a2a_time in microseconds
                 auto start_s = std::chrono::high_resolution_clock::now();
                 ncclGroupStart();
-                ncclAllReduce(d_sendbuf, d_recvbuf, (buff_size_byte[i] / sizeof(T)), dtype, ncclSum, comm, stream);
+                for (int r=0; r<size; r++) {
+                    ncclSend(d_sendbuf, count_el, dtype, r, comm, stream);
+                    ncclRecv(d_recvbuf + (r*count_el), count_el, dtype, r, comm, stream);          
+                }
                 ncclGroupEnd();
-
                 cudaStreamSynchronize(stream);
                 auto end_s = std::chrono::high_resolution_clock::now();
-                ar_time += std::chrono::duration_cast<std::chrono::microseconds>(end_s - start_s).count();
-                MPI_Allreduce(MPI_IN_PLACE, &ar_time, 1, MPI_FLOAT, MPI_MAX, MPI_COMM_WORLD);
+                a2a_time_per_rank += std::chrono::duration_cast<std::chrono::microseconds>(end_s - start_s).count();
+                a2a_time += std::chrono::duration_cast<std::chrono::microseconds>(end_s - start_s).count();
+
+                MPI_Allreduce(MPI_IN_PLACE, &a2a_time, 1, MPI_LONG_LONG, MPI_MAX, MPI_COMM_WORLD);
                 chain_size++;
             }
-            
             powerProf.stop();
-            double dev_energy_mj = powerProf.get_device_energy() / static_cast<double>(chain_size); //device energy in mj for one collective run
-            
-            //TODO: add support for host energy
-            // double host_energy_mj = powerProf.get_host_energy() / static_cast<double>(chain_size); //host energy in mj for one collective run
-            
-
-            // Consider the energy consumption consumed by all CPUs and all GPUs of each rank
-            // MPI_Allreduce(MPI_IN_PLACE, &host_energy_mj, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-            MPI_Allreduce(MPI_IN_PLACE, &dev_energy_mj, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            // When the enery read by the profiler is negative we skip the value 
-            // if(host_energy_mj <=0.0){
-            //     host_energy_counter--;
-            //     host_energy_mj=0;
-            // }
-            avg_dev_energy_mj+= dev_energy_mj;
-            // avg_host_energy_mj+= host_energy_mj;
-
-            float mem_cpy_t = std::chrono::duration_cast<std::chrono::microseconds>(mem_cpy_t_end - mem_cpy_t_start).count();
-            // Sum of all energy consumed by the host
-            
+            prof_data_types::energy_t dev_energy_uj = powerProf.get_device_energy(); //device energy in uj for one collective run for the current rank
+            double time_ms = static_cast<double>(a2a_time_per_rank) / 1000.0; // time in ms for the current rank
+            double dev_energy_mj = static_cast<double>(dev_energy_uj) / 1000.0; 
             if (rank == 0) {
-                float mem_cpy_t_s = (mem_cpy_t * 2) / 1e+6;
-                float data_Gb = static_cast<double>(buff_size_byte[i]) / 1.25e+8;
-                float ar_time_s = (ar_time / 1e+6);
-                float single_run_time_s = (ar_time_s / chain_size);
-                avg_time_s += single_run_time_s;
-                //TODO: add support for host energy
-                // csv_file << "ar_cuda_nccl," << "run_" << run << "," << typeid(T).name() << "," << chain_size << "," << buff_size_byte[i] << "," << mem_cpy_t_s * 1000 << "," << single_run_time_s * 1000 << "," << (data_Gb / single_run_time_s)<< ","<< dev_energy_mj << ","<< host_energy_mj << std::endl;
-                csv_file << "ar_cuda_nccl," << "run_" << run << "," << typeid(T).name() << "," << chain_size << "," << buff_size_byte[i] << "," << mem_cpy_t_s * 1000 << "," << single_run_time_s * 1000 << "," << (data_Gb / single_run_time_s)<< ","<< dev_energy_mj << ","<< "N/A" << std::endl;
-            
+                std::cout << "[RESULT] Writing in logger file ..." << std::endl;
             }
-        }
-        if (rank == 0) {
-            float data_Gb = static_cast<double>(buff_size_byte[i]) / 1.25e+8;
-            avg_time_s /= MAX_RUN;
-            avg_dev_energy_mj/=MAX_RUN;
-            // avg_host_energy_mj/=host_energy_counter;
-            // csv_file << "ar_cuda_nccl,run_avg," << typeid(T).name() << "," << chain_size << "," << buff_size_byte[i] << ",N/A," << avg_time_s * 1000 << "," << (data_Gb / avg_time_s) << "," << avg_dev_energy_mj << ","<< avg_host_energy_mj << std::endl;
-            csv_file << "ar_cuda_nccl,run_avg," << typeid(T).name() << "," << chain_size << "," << buff_size_byte[i] << ",N/A," << avg_time_s * 1000 << "," << (data_Gb / avg_time_s) << "," << avg_dev_energy_mj << std::endl;
-        
+            // host energy is 0 now
+            clog::Logger::ProfilingInfo<T> prof_info{time_ms, buff_size_byte[i], dev_energy_mj, 0.0, ctx.global_rank, ctx.local_rank, ctx.global_rank_size, run, true, chain_size, "composite"};  
+            prof_data_types::power_trace_t power_trace = powerProf.get_power_execution_data(); // get power trace data and store it internally in the power_prof object
+            std::string power_trace_str = prof_data_types::power_trace_to_string(power_trace);
+            clog::CsvField power_trace_field{"power_trace", power_trace_str};
+            csv_log.log_result<T>(prof_info, power_trace_field); 
+            
+
         }
     }
-    cudaMemcpy(d_recvbuf, h_recvbuf, buff_size_byte[num_iters-1], cudaMemcpyHostToDevice);
+    cudaMemcpy(d_recvbuf, h_recvbuf, buff_size_byte[num_iters-1] * size , cudaMemcpyHostToDevice);
 
 
     cudaStreamDestroy(stream);
@@ -144,61 +127,35 @@ void run(ncclComm_t& comm,int& rank, int& numGPUs, std::string& log_path, std::s
     cudaFree(d_recvbuf);
     free(h_sendbuf);
     free(h_recvbuf);
+
+
 }
 
 int main(int argc, char *argv[]) {
-    int rank, size;
-    std::string log_path;
+
     std::string csv_path;
     
-    if (argc != 3)
+    if (argc != 2)
         return -1;
     else{   
-        log_path = argv[1];
-        csv_path = argv[2];
+        csv_path = argv[1];
     }
 
 
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-    // Detect GPUs for each node
-    int numGPUs;
-    cudaGetDeviceCount(&numGPUs);
-        
-    if (numGPUs == 0) {
-        std::cerr << "No GPU devices available!" << std::endl;
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-
-    // Local rank for each node
-    int local_rank;
-    MPI_Comm local_comm;
-    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL, &local_comm);
-    MPI_Comm_rank(local_comm, &local_rank);
-
-    
-  
-
-    // Bind each local process to a GPU
-    cudaSetDevice(local_rank % numGPUs);
-
-    ncclComm_t comm;
-    ncclUniqueId id;
-    if (rank == 0) ncclGetUniqueId(&id);
-    MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, MPI_COMM_WORLD);
-    ncclCommInitRank(&comm, size, id, rank);
-    
+    nvidia::utils::ncclContext ctx = nvidia::utils::init_nccl(csv_path, "a2a"); // initialize oneCCL and MPI
+ 
     // Run with different data type
-    // run<uint8_t>(comm, rank, numGPUs, log_path, csv_path);
-    // run<int>(comm, rank, numGPUs, log_path, csv_path);
-    run<float>(comm, rank, numGPUs, log_path, csv_path);
-    // run<double>(comm, rank, numGPUs, log_path, csv_path);
+    // run<uint8_t>(comm, rank, size, numGPUs, log_path, csv_path);
+    // run<int>(comm, rank, size, numGPUs, log_path, csv_path);
+    run<float>(ctx);
+    // run<double>(comm, rank, size, numGPUs, log_path, csv_path);
 
+    ncclCommDestroy(std::move(*ctx.comm));
     
-    ncclCommDestroy(comm);
     MPI_Finalize();
 
     return 0;
 }
+
+
+
