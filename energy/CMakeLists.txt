@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(collective-profiler LANGUAGES CXX CUDA)
+project(collective-profiler LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,10 +18,12 @@ set(BACKEND_COUNT 0)
 
 if (ENABLE_NCCL)
     math(EXPR BACKEND_COUNT "${BACKEND_COUNT} + 1")
+    enable_language(CUDA)
 endif()
 
 if (ENABLE_RCCL)
     math(EXPR BACKEND_COUNT "${BACKEND_COUNT} + 1")
+    enable_language(HIP)
 endif()
 
 
