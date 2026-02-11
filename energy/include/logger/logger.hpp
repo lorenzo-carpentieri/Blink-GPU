@@ -15,10 +15,41 @@
 #include <cstring>
 #include <cstdio>
 #include <typeinfo>
+#include <cstdlib>
 
 
 namespace common {
     namespace logger {
+
+        
+        enum class LogLevel {
+            Debug,
+            Info
+        };
+
+        LogLevel parseLogLevel(const std::string& level)
+        {
+            if (level == "DEBUG")
+                return LogLevel::Debug;
+            return LogLevel::Info;
+        }
+
+        void logMessage(const std::string& message, LogLevel type)
+        {
+            const char* env = std::getenv("LOG_INFO");
+            if (!env) return;
+
+            std::string envLevel(env);
+            std::transform(envLevel.begin(), envLevel.end(),
+                        envLevel.begin(), ::toupper);
+
+            LogLevel currentLevel = parseLogLevel(envLevel);
+
+            if (currentLevel == type) {
+                std::cerr << "[" << envLevel << "] " << message << std::endl;
+            }
+        }
+
 
         namespace fs = std::filesystem;
         // Utility struct to represent a single field in the CSV log
@@ -61,13 +92,6 @@ namespace common {
             int total_nodes;
             bool is_multi_node;
 
-            std::string get_timestamp() const {
-                auto now = std::chrono::system_clock::now();
-                auto time_t = std::chrono::system_clock::to_time_t(now);
-                std::stringstream ss;
-                ss << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S");
-                return ss.str();
-            }
             
             std::string get_hostname_internal() const {
                 char hostname_buf[256];
@@ -78,6 +102,7 @@ namespace common {
             }
             
             void initialize_node_info() {
+                logMessage("Initialze node info", LogLevel::Info);
                 // Ottieni hostname
                 hostname = get_hostname_internal();
 
@@ -130,14 +155,20 @@ namespace common {
                 }
                 
                 // Debug output (solo dal rank 0)
+                
                 if (rank == 0) {
-                    std::cout << "[NODE INFO] Total nodes: " << total_nodes 
-                            << ", Multi-node: " << (is_multi_node ? "yes" : "no") << std::endl;
-                    std::cout << "[NODE INFO] Unique hostnames: ";
+                    std::ostringstream oss;
+
+                    oss << "Total nodes: " << total_nodes 
+                            << ", Multi-node: " 
+                            << (is_multi_node ? "yes" : "no") << std::endl;
+                    oss << "Unique hostnames: ";
                     for (const auto& host : sorted_hosts) {
-                        std::cout << host << " ";
+                        oss << host << " ";
                     }
-                    std::cout << std::endl;
+                    oss << std::endl;
+                    
+                    logMessage(oss.str(), LogLevel::Info);
                 }
             }
 
@@ -152,10 +183,14 @@ namespace common {
                 if (!dir.empty() && !fs::exists(dir)) {
                     // Create directories recursively
                     try {
+                        std::ostringstream oss;
                         fs::create_directories(dir); // returns true/false
-                        std::cout << "Directory exists or created: " << dir << "\n";
+                        oss << "Directory exists or created: " << dir << "\n";
+                        logMessage(oss.str(), LogLevel::Info);
                     } catch (const std::exception& e) {
-                        std::cerr << "Error creating directory: " << dir << " -> " << e.what() << "\n";
+                        std::ostringstream oss;
+                        oss << "Error creating directory: " << dir << " -> " << e.what() << "\n";
+                        logMessage(oss.str(), LogLevel::Info);
                     }
                 }
             }
@@ -166,10 +201,15 @@ namespace common {
 
             void write_header(std::ofstream& file, const std::vector<CsvField>& extras = {}) const {
                 file << "library,collective,data_type,message_size_bytes,message_size_elements,num_ranks,global_rank,local_rank,hostname,node_id,total_nodes,is_multi_node,run_id,gpu_mode,test_passed,chain_size,total_time_ms,time_ms_1coll,total_device_energy_mj,device_energy_mj_1coll,total_host_energy_mj,host_energy_mj_1coll,goodput_Gb_per_s";
-                for (const auto& f : extras)
+                std::cout << "library,collective,data_type,message_size_bytes,message_size_elements,num_ranks,global_rank,local_rank,hostname,node_id,total_nodes,is_multi_node,run_id,gpu_mode,test_passed,chain_size,total_time_ms,time_ms_1coll,total_device_energy_mj,device_energy_mj_1coll,total_host_energy_mj,host_energy_mj_1coll,goodput_Gb_per_s";
+ 
+                for (const auto& f : extras){
                     file << "," << f.key;
-
+                    std::cout << "," << f.key;
+                }
                 file << "\n";
+                std::cout << "\n";
+
             }
 
         public:
@@ -241,8 +281,6 @@ namespace common {
                             std::cerr << "Warning: Could not open log file: " << filename << std::endl;
                             return;
                         }
-                        
-
                     
                         // Adde energy for each rank, then add also another line for avg time and energy for all the ranks
                         // Scrivi la riga di dati
@@ -278,6 +316,38 @@ namespace common {
                             
                         file.close();
 
+
+                        /*################### Print the results also in the std::out ###################*/
+                        std::cout << library_name << ","
+                            << collective_name << ","
+                            << typeid(T).name() << ","
+                            << info.message_size_bytes << ","
+                            << info.message_size_bytes /  sizeof(T) << ","
+                            << info.num_ranks << ","
+                            << info.global_rank << "," // can be 0 to num_ranks or aggregate
+                            << info.local_rank << "," // can be 0 to num_ranks or aggregate
+                            << hostname << ","
+                            << node_id << ","
+                            << total_nodes << ","
+                            << (is_multi_node ? "true" : "false") << ","
+                            << info.run_id << "," 
+                            << gpu_mode << "," // Only for Intel GPUs
+                            << (info.test_passed ? "true" : "false") << ","
+                            << info.chain_size << ","
+                            << std::fixed << std::setprecision(6) << info.time_ms  << ","
+                            << std::fixed << std::setprecision(6) << time_ms_1coll  << ","
+                            << std::fixed << std::setprecision(3) << info.device_energy_mj  << ","
+                            << std::fixed << std::setprecision(3) << device_energy_mj_1coll  << ","
+                            << std::fixed << std::setprecision(3) << info.host_energy_mj  << ","
+                            << std::fixed << std::setprecision(3) << host_energy_mj_1coll  << ","
+                            << std::fixed << std::setprecision(6) << goodput_Gb_per_s;
+                            
+                            // Write extra fields if any
+                            for (const auto& f : extra_fields)
+                                std::cout << "," << f.value;
+                            
+                            std::cout << "\n";
+                            
                     }
                     
                     MPI_Barrier(MPI_COMM_WORLD);
