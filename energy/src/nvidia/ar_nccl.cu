@@ -8,12 +8,11 @@
 #include "../../energy-profiler/include/profiler/power_profiler.hpp"
 #include "./utils/nccl_ctx.hpp"
 
-#define MAX_RUN 5
+#define MAX_RUN 3
 #define WARM_UP_RUN 1
-#define TIME_TO_ACHIEVE_MS 10000
-#define POWER_SAMPLING_RATE_MS 20
+#define TIME_TO_ACHIEVE_MS 5000
+#define POWER_SAMPLING_RATE_MS 40
 #define MAX_BUF 100
-#define MESSAGE_SIZE_FACTOR 4
 
 namespace prof_data_types = profiler::data_types; // define profiler::data_types namespace abbreviation
 namespace clog = common::logger;
@@ -31,18 +30,14 @@ void run(nvidia::utils::ncclContext& ctx){
 
     
 
-    constexpr size_t ONE_GB = 1024 * 1024 * 1024;
-    size_t *buff_size_byte = (size_t *)malloc(sizeof(size_t) * MAX_BUF);
-    size_t num_elements=1;
+    size_t buff_size_byte[] = {
+        4,
+        32, 64, 512, 4096, 32768, 262144,
+        2097152, 167777216, 134217728, 1073741824
+    };
 
-    int i=0;
-    while(num_elements * sizeof(T) <= ONE_GB ){
-        buff_size_byte[i] = num_elements * sizeof(T);
-        num_elements *= MESSAGE_SIZE_FACTOR;
-        i++;
-    }
+    const int num_iters = std::size(buff_size_byte);
 
-    const int num_iters = i;
     T *d_sendbuf, *d_recvbuf;
     cudaMalloc((void **)&d_sendbuf, buff_size_byte[num_iters - 1]);
     cudaMalloc((void **)&d_recvbuf, buff_size_byte[num_iters - 1]); // each rank sendbuff size bytes
