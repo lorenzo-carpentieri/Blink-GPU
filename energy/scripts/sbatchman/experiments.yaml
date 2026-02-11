@@ -1,5 +1,7 @@
 variables:
-  nodes: [2, 4, 8, 16]
+  # nodes: [2, 4, 8, 16, 32]
+  # nodes: [2, 4, 8]
+  nodes: [16, 32]
   channels: [2, 4, 8, 16, 32]
   protocols_1: ["Simple", "LL",  "LL128"]
   protocols_2: ["Simple"]
@@ -29,30 +31,33 @@ variables:
 sequential: true
 
 jobs:
-  ####### LUMI ############
+  ####### LUMI ############################################################
   - config: a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_lumi}
     command: "srun {base_dir_lumi}/build/bin/a2a_rccl {base_dir_lumi}/logs/a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_lumi}.csv"
     cluster_name: "lumi"
     config_jobs:
       - tag: a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_lumi}
-
-  ####### LEONARDO ############
+  ########################################################################
+  
+  ############################### LEONARDO ####################################
+  ############################### ALL TO ALL ###############################
   - config: a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}
     command: "srun  {base_dir_leonardo}/build/bin/a2a_nccl {base_dir_leonardo}/logs/a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}.csv"
     cluster_name: "leonardo"
     config_jobs:
       - tag: "a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}"
-
-  - config: ar_n{nodes}_alg{algorithms_1}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}
-    command: "srun  {base_dir_leonardo}/build/bin/ar_nccl {base_dir_leonardo}/logs/ar_n{nodes}_alg{algorithms_1}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}.csv"
-    cluster_name: "leonardo"
-    config_jobs:
-      - tag: "ar_n{nodes}_alg{algorithms_1}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}"
-
-  - config: ar_n{nodes}_alg{algorithms_2}_prot{protocols_2}_ch{channels}_th{threads}_{partition_leonardo}
-    command: "srun  {base_dir_leonardo}/build/bin/a2a_nccl {base_dir_leonardo}/logs/ar_n{nodes}_alg{algorithms_2}_prot{protocols_2}_ch{channels}_th{threads}_{partition_leonardo}.csv"
-    cluster_name: "leonardo"
-    config_jobs:
-      - tag: "ar_n{nodes}_alg{algorithms_2}_prot{protocols_2}_ch{channels}_th{threads}_{partition_leonardo}"
-
-    ##########################
+  ########################################################################
+  
+  ############################### ALL REDUCE ###############################
+  # - config: ar_n{nodes}_alg{algorithms_1}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}
+  #   command: "srun  {base_dir_leonardo}/build/bin/ar_nccl {base_dir_leonardo}/logs/ar_n{nodes}_alg{algorithms_1}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}.csv"
+  #   cluster_name: "leonardo"
+  #   config_jobs:
+  #     - tag: "ar_n{nodes}_alg{algorithms_1}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}"
+  
+  # - config: ar_n{nodes}_alg{algorithms_2}_prot{protocols_2}_ch{channels}_th{threads}_{partition_leonardo}
+  #   command: "srun  {base_dir_leonardo}/build/bin/a2a_nccl {base_dir_leonardo}/logs/ar_n{nodes}_alg{algorithms_2}_prot{protocols_2}_ch{channels}_th{threads}_{partition_leonardo}.csv"
+  #   cluster_name: "leonardo"
+  #   config_jobs:
+  #     - tag: "ar_n{nodes}_alg{algorithms_2}_prot{protocols_2}_ch{channels}_th{threads}_{partition_leonardo}"
+  ########################################################################
