@@ -185,11 +185,11 @@ namespace common {
                     try {
                         std::ostringstream oss;
                         fs::create_directories(dir); // returns true/false
-                        oss << "Directory exists or created: " << dir << "\n";
+                        oss << "Directory exists or created: " << dir << std::endl;
                         logMessage(oss.str(), LogLevel::Info);
                     } catch (const std::exception& e) {
                         std::ostringstream oss;
-                        oss << "Error creating directory: " << dir << " -> " << e.what() << "\n";
+                        oss << "Error creating directory: " << dir << " -> " << e.what() << std::endl;
                         logMessage(oss.str(), LogLevel::Info);
                     }
                 }
@@ -207,8 +207,8 @@ namespace common {
                     file << "," << f.key;
                     std::cout << "," << f.key;
                 }
-                file << "\n";
-                std::cout << "\n";
+                file << std::endl;;
+                std::cout << std::endl;
 
             }
 
@@ -312,7 +312,7 @@ namespace common {
                             for (const auto& f : extra_fields)
                                 file << "," << f.value;
                             
-                            file << "\n";
+                            file << std::endl;
                             
                         file.close();
 
@@ -346,7 +346,7 @@ namespace common {
                             for (const auto& f : extra_fields)
                                 std::cout << "," << f.value;
                             
-                            std::cout << "\n";
+                            std::cout << std::endl;
                             
                     }
                     
