@@ -8,12 +8,12 @@
 #include "../../energy-profiler/include/profiler/power_profiler.hpp"
 #include "./utils/nccl_ctx.hpp"
 
-#define MAX_RUN 1
+#define MAX_RUN 5
 #define WARM_UP_RUN 1
 #define TIME_TO_ACHIEVE_MS 10000
-#define POWER_SAMPLING_RATE_MS 40
+#define POWER_SAMPLING_RATE_MS 20
 #define MAX_BUF 100
-#define MESSAGE_SIZE_FACTOR 8
+#define MESSAGE_SIZE_FACTOR 4
 
 namespace prof_data_types = profiler::data_types; // define profiler::data_types namespace abbreviation
 namespace clog = common::logger;
@@ -100,9 +100,7 @@ void run(nvidia::utils::ncclContext& ctx){
             prof_data_types::energy_t dev_energy_uj = powerProf.get_device_energy(); //device energy in uj for one collective run for the current rank
             double time_ms = static_cast<double>(ar_time_per_rank) / 1000.0; // time in ms for the current rank
             double dev_energy_mj = static_cast<double>(dev_energy_uj) / 1000.0; 
-            if (rank == 0) {
-                std::cout << "[RESULT] Writing in logger file ..." << std::endl;
-            }
+            
             // host energy is 0 now
             clog::Logger::ProfilingInfo<T> prof_info{time_ms, buff_size_byte[i], dev_energy_mj, 0.0, ctx.global_rank, ctx.local_rank, ctx.global_rank_size, run, true, chain_size, "composite"};  
             prof_data_types::power_trace_t power_trace = powerProf.get_power_execution_data(); // get power trace data and store it internally in the power_prof object
