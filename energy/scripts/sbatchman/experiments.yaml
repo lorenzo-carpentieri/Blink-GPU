@@ -1,0 +1,21 @@
+variables:
+  # nodes: [2, 4]
+  # channels: [2, 4, 8, 16, 32]
+  # protocols: [Simple, LL,  LL128]
+  # threads: [64, 128, 256, 512]
+  # partition_leonardo: [boost_usr_prod]
+  # partition_lumi: [dev-g]
+  nodes: [2]
+  channels: [2]
+  protocols: ["LL128"]
+  threads: [64]
+  partition_leonardo: [boost_usr_prod]
+  partition_lumi: [dev-g]
+  
+
+jobs:
+  - config: a2a_n{nodes}_prot{protocols}_ch{channels}_th{threads}_{partition_lumi}
+    command: "srun /users/carpenti/energy-ws/Blink-GPU/energy/build/bin/a2a_rccl /users/carpenti/energy-ws/Blink-GPU/energy/logs/a2a_n{nodes}_prot{protocols}_ch{channels}_th{threads}_{partition_lumi}.csv"
+    cluster_name: "lumi"
+    sequential: true
+    tag: a2a_n{nodes}_prot{protocols}_ch{channels}_th{threads}_{partition_lumi}
