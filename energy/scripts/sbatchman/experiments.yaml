@@ -1,21 +1,58 @@
 variables:
-  # nodes: [2, 4]
-  # channels: [2, 4, 8, 16, 32]
-  # protocols: [Simple, LL,  LL128]
-  # threads: [64, 128, 256, 512]
+  nodes: [2, 4, 8, 16, 32]
+  channels: [2, 4, 8, 16, 32]
+  protocols_1: ["Simple", "LL",  "LL128"]
+  protocols_2: ["Simple"]
+  algorithms_1: [Ring, Tree]
+  algorithms_2: [ColletDirect, Collnet, NVLS, NVLSTree] 
+  threads: [64, 128, 256, 512]
+  partition_leonardo: ["boost_usr_prod"]
+  partition_lumi: [dev-g]
+  base_dir_leonardo: ["/leonardo/home/userexternal/kfan0000/mpi-energy/Blink-GPU/energy"]
+  base_dir_lumi: ["/users/carpenti/energy-ws/Blink-GPU/energy"]
+  
+  ################## TEST ############### 
+  # nodes: [2]
+  # channels: [2]
+  # protocols_1: ["Simple"]
+  # protocols_2: ["Simple"]
+  # threads: [64]
   # partition_leonardo: [boost_usr_prod]
   # partition_lumi: [dev-g]
-  nodes: [2]
-  channels: [2]
-  protocols: ["LL128"]
-  threads: [64]
-  partition_leonardo: [boost_usr_prod]
-  partition_lumi: [dev-g]
+  # algorithms_1: [Ring]
+  # algorithms_2: [ColletDirect] 
+  # base_dir_leonardo: ["/leonardo/home/userexternal/kfan0000/mpi-energy/Blink-GPU/energy"]
+  # base_dir_lumi: ["/users/carpenti/energy-ws/Blink-GPU/energy"]
   
+  ################################# 
+
+sequential: true
 
 jobs:
-  - config: a2a_n{nodes}_prot{protocols}_ch{channels}_th{threads}_{partition_lumi}
-    command: "srun /users/carpenti/energy-ws/Blink-GPU/energy/build/bin/a2a_rccl /users/carpenti/energy-ws/Blink-GPU/energy/logs/a2a_n{nodes}_prot{protocols}_ch{channels}_th{threads}_{partition_lumi}.csv"
+  ####### LUMI ############
+  - config: a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_lumi}
+    command: "srun {base_dir_lumi}/build/bin/a2a_rccl {base_dir_lumi}/logs/a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_lumi}.csv"
     cluster_name: "lumi"
-    sequential: true
-    tag: a2a_n{nodes}_prot{protocols}_ch{channels}_th{threads}_{partition_lumi}
+    config_jobs:
+      - tag: a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_lumi}
+
+  ####### LEONARDO ############
+  - config: a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}
+    command: "srun  {base_dir_leonardo}/build/bin/a2a_nccl {base_dir_leonardo}/logs/a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}.csv"
+    cluster_name: "leonardo"
+    config_jobs:
+      - tag: "a2a_n{nodes}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}"
+
+  - config: ar_n{nodes}_alg{algorithms_1}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}
+    command: "srun  {base_dir_leonardo}/build/bin/ar_nccl {base_dir_leonardo}/logs/ar_n{nodes}_alg{algorithms_1}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}.csv"
+    cluster_name: "leonardo"
+    config_jobs:
+      - tag: "ar_n{nodes}_alg{algorithms_1}_prot{protocols_1}_ch{channels}_th{threads}_{partition_leonardo}"
+
+  - config: ar_n{nodes}_alg{algorithms_2}_prot{protocols_2}_ch{channels}_th{threads}_{partition_leonardo}
+    command: "srun  {base_dir_leonardo}/build/bin/a2a_nccl {base_dir_leonardo}/logs/ar_n{nodes}_alg{algorithms_2}_prot{protocols_2}_ch{channels}_th{threads}_{partition_leonardo}.csv"
+    cluster_name: "leonardo"
+    config_jobs:
+      - tag: "ar_n{nodes}_alg{algorithms_2}_prot{protocols_2}_ch{channels}_th{threads}_{partition_leonardo}"
+
+    ##########################
