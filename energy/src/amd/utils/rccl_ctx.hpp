@@ -101,7 +101,7 @@ namespace amd {
 						
             ctx.comm = std::make_unique<ncclComm_t>(comm);
 			ctx.stream = std::make_unique<hipStream_t>(stream);
-            clog::Logger logger(output_dir, "nccl", collective_name, "Composite"); // create logger instance 
+            clog::Logger logger(output_dir, "rccl", collective_name, "Composite"); // create logger instance 
 
             ctx.logger = std::make_unique<clog::Logger>(std::move(logger)); // move logger instance
             return ctx;
