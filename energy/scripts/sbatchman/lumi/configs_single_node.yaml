@@ -1,0 +1,108 @@
+variables:
+  nodes: [1]
+  channels: [2, 4, 8, 16, 32]
+  protocols_1: ["Simple", "LL",  "LL128"]
+  partition_lumi: [standard-g]
+  alg: [Ring, Tree]
+  threads: [64, 128, 256, 512]
+  
+lumi:
+  scheduler: slurm
+
+  default_conf:
+    account: "project_465002469"
+    exclusive: true
+    gpus: 8
+    partition: bench
+    cpus_per_task: 1
+    tasks_per_node: 8
+    time: "01:00:00"
+
+  configs:
+    - name: "a2a_n{nodes}_default_{partition_lumi}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_lumi}"
+      time: "01:00:00"
+      env:
+        - "NCCL_NET_GDR_LEVEL=3"
+        - "FI_CXI_ATS=0"
+        - "NCCL_BUFFSIZE=33554432"
+        - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
+        - "CXX=/opt/rocm-6.3.4/lib/llvm/bin/clang++"
+        - "CC=gcc"
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=GRAPH"
+      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
+
+    - name: "a2a_n{nodes}_algDefault_prot{protocols_1}_ch{channels}_th256_{partition_lumi}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_lumi}"
+      time: "01:00:00"
+      env:
+        - "NCCL_NET_GDR_LEVEL=3"
+        - "FI_CXI_ATS=0"
+        - "NCCL_BUFFSIZE=33554432"
+        - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
+        - "NCCL_PROTO={protocols_1}"
+        - "NCCL_MIN_CTAS={channels}"
+        - "NCCL_MAX_CTAS={channels}"
+        - "CXX=/opt/rocm-6.3.4/lib/llvm/bin/clang++"
+        - "CC=gcc"
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=GRAPH"
+      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
+    
+    - name: "ar_n{nodes}_default_{partition_lumi}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_lumi}"
+      time: "01:00:00"
+      env:
+        - "NCCL_NET_GDR_LEVEL=3"
+        - "FI_CXI_ATS=0"
+        - "NCCL_BUFFSIZE=33554432"
+        - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
+        - "CXX=/opt/rocm-6.3.4/lib/llvm/bin/clang++"
+        - "CC=gcc"
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=GRAPH"
+      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
+
+    - name: "ar_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_lumi}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_lumi}"
+      time: "01:00:00"
+      env:
+        - "NCCL_NET_GDR_LEVEL=3"
+        - "FI_CXI_ATS=0"
+        - "NCCL_BUFFSIZE=33554432"
+        - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
+        - "NCCL_PROTO={protocols_1}"
+        - "NCCL_ALGO={alg}"
+        - "CXX=/opt/rocm-6.3.4/lib/llvm/bin/clang++"
+        - "CC=gcc"
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=GRAPH"
+      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
+
+    - name: "ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_lumi}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_lumi}"
+      time: "01:00:00"
+      env:
+        - "NCCL_NET_GDR_LEVEL=3"
+        - "FI_CXI_ATS=0"
+        - "NCCL_BUFFSIZE=33554432"
+        - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
+        - "NCCL_MIN_CTAS={channels}"
+        - "NCCL_MAX_CTAS={channels}"
+        - "NCCL_NTHREADS={threads}" # Fixed for all to all implemented with send/recv
+        - "CXX=/opt/rocm-6.3.4/lib/llvm/bin/clang++"
+        - "CC=gcc"
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=GRAPH"
+      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]

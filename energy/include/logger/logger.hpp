@@ -249,7 +249,18 @@ namespace common {
                 double device_energy_mj_1coll = info.device_energy_mj / info.chain_size; 
                 double host_energy_mj_1coll = info.host_energy_mj / info.chain_size; 
                 double data_Gb = static_cast<double>(info.message_size_bytes) / 1.25e+8;
-                double goodput_Gb_per_s = data_Gb / (time_ms_1coll / 1000); // Gigabit per seconds 
+                double goodput_Gb_per_s = 0;
+                if(collective_name == "a2a"){
+                    goodput_Gb_per_s = (data_Gb * info.num_ranks * 2) / (time_ms_1coll / 1000); // Gigabit per seconds 
+                }
+                else if(collective_name == "ar"){
+                    goodput_Gb_per_s = data_Gb / (time_ms_1coll / 1000); // Gigabit per seconds 
+                }
+                else{
+
+                }
+               
+                
 
                 
                 std::string filename = output_file_path;
