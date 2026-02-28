@@ -36,7 +36,7 @@ void run(nvidia::utils::ncclContext& ctx){
     size_t buff_size_byte[] = {
         4,
         32, 64, 512, 4096, 32768, 262144,
-        2097152, 167777216, 134217728, 1073741824
+        2097152, 16777216, 134217728, 1073741824
     };
 
     const int num_iters = std::size(buff_size_byte);

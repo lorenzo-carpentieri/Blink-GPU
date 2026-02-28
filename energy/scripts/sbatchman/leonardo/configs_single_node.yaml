@@ -1,0 +1,71 @@
+variables:
+  nodes: [1]
+  channels: [2, 4, 8, 16, 32]
+  protocols_1: ["Simple", "LL",  "LL128"]
+  partition_leonardo: [standard-g]
+  alg: [Ring, Tree]
+  threads: [64, 128, 256, 512]
+  
+leonardo:
+  scheduler: slurm
+
+  default_conf:
+    account: "project_465002469"
+    exclusive: true
+    gpus: 8
+    partition: bench
+    cpus_per_task: 1
+    tasks_per_node: 8
+    time: "01:00:00"
+
+  configs:
+    - name: "a2a_n{nodes}_default_{partition_leonardo}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_leonardo}"
+      time: "01:00:00"
+      env:
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=ALL"
+      modules: ["gcc/", "cuda/12.2", "openmpi/", "nvhpc/", "nccl/"]
+
+    - name: "a2a_n{nodes}_algDefault_prot{protocols_1}_ch{channels}_th256_{partition_leonardo}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_leonardo}"
+      time: "01:00:00"
+      env:
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=ALL"
+      modules: ["gcc/", "cuda/12.2", "openmpi/", "nvhpc/", "nccl/"]
+    
+    - name: "ar_n{nodes}_default_{partition_leonardo}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_leonardo}"
+      time: "01:00:00"
+      env:
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=ALL"
+      modules: ["gcc/", "cuda/12.2", "openmpi/", "nvhpc/", "nccl/"]
+
+
+    - name: "ar_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_leonardo}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_leonardo}"
+      time: "01:00:00"
+      env:
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=ALL"
+      modules: ["gcc/", "cuda/12.2", "openmpi/", "nvhpc/", "nccl/"]
+
+    - name: "ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_leonardo}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_leonardo}"
+      time: "01:00:00"
+      env:
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=ALL"
+      modules: ["gcc/", "cuda/12.2", "openmpi/", "nvhpc/", "nccl/"]
