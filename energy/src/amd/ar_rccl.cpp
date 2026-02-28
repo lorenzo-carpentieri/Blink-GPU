@@ -98,7 +98,7 @@ void run(amd::utils::rcclContext& ctx){
                 chain_size++;
             }
             powerProf.stop();
-            prof_data_types::energy_t dev_energy_uj = powerProf.get_device_energy(); //device energy in uj for one collective run for the current rank
+            double dev_energy_uj = powerProf.get_device_energy(); //device energy in uj for one collective run for the current rank
             double time_ms = static_cast<double>(ar_time_per_rank) / 1000.0; // time in ms for the current rank
             double dev_energy_mj = static_cast<double>(dev_energy_uj) / 1000.0; 
             
