@@ -5,7 +5,9 @@ variables:
   partition_lumi: [standard-g]
   alg: [Ring, Tree]
   threads: [64, 128, 256, 512]
-  
+  partition_leonardo: [boost_usr_prod]
+
+# LUMI Config.
 lumi:
   scheduler: slurm
 
@@ -35,7 +37,7 @@ lumi:
         - "NCCL_DEBUG_SUBSYS=GRAPH"
       modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
 
-    - name: "a2a_n{nodes}_algDefault_prot{protocols_1}_ch{channels}_th256_{partition_lumi}"
+    - name: "a2a_n{nodes}_algDefault_prot{protocols_1}_ch{channels}_thDefault_{partition_lumi}"
       exclusive: true
       nodes: "{nodes}"
       partition: "{partition_lumi}"
@@ -106,3 +108,77 @@ lumi:
         - "NCCL_DEBUG=INFO"
         - "NCCL_DEBUG_SUBSYS=GRAPH"
       modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
+
+# LEONARDO Config.
+leonardo:
+  scheduler: slurm
+
+  default_conf:
+    account: "IscrC_OMG-25"
+    exclusive: true
+    gpus: 4
+    partition: bench
+    cpus_per_task: 1
+    tasks_per_node: 4
+    time: "01:00:00"
+
+  configs:
+    - name: "a2a_n{nodes}_default_{partition_leonardo}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_leonardo}"
+      time: "01:00:00"
+      env:
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=ALL"
+      modules: ["gcc/", "cuda/12.2", "openmpi/", "nvhpc/", "nccl/"]
+
+    - name: "a2a_n{nodes}_algDefault_prot{protocols_1}_ch{channels}_thDefault_{partition_leonardo}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_leonardo}"
+      time: "01:00:00"
+      env:
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=ALL"
+        - "NCCL_PROTO={protocols_1}"
+        - "NCCL_MIN_CTAS={channels}"
+        - "NCCL_MAX_CTAS={channels}"
+        
+      modules: ["gcc/", "cuda/12.2", "openmpi/", "nvhpc/", "nccl/"]
+    
+    - name: "ar_n{nodes}_default_{partition_leonardo}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_leonardo}"
+      time: "01:00:00"
+      env:
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=ALL"
+      modules: ["gcc/", "cuda/12.2", "openmpi/", "nvhpc/", "nccl/"]
+
+
+    - name: "ar_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_leonardo}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_leonardo}"
+      time: "01:00:00"
+      env:
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=ALL"
+        - "NCCL_PROTO={protocols_1}"
+        - "NCCL_ALGO={alg}"
+      modules: ["gcc/", "cuda/12.2", "openmpi/", "nvhpc/", "nccl/"]
+
+    - name: "ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_leonardo}"
+      exclusive: true
+      nodes: "{nodes}"
+      partition: "{partition_leonardo}"
+      time: "01:00:00"
+      env:
+        - "NCCL_DEBUG=INFO"
+        - "NCCL_DEBUG_SUBSYS=ALL"
+        - "NCCL_MIN_CTAS={channels}"
+        - "NCCL_MAX_CTAS={channels}"
+        - "NCCL_NTHREADS={threads}"
+      modules: ["gcc/", "cuda/12.2", "openmpi/", "nvhpc/", "nccl/"]
