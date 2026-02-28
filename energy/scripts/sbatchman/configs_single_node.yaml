@@ -35,6 +35,7 @@ lumi:
         - "CC=gcc"
         - "NCCL_DEBUG=INFO"
         - "NCCL_DEBUG_SUBSYS=GRAPH"
+      custom_headers: ["export EBU_USER_PREFIX=/project/project_465002469/EasyBuild"]
       modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
 
     - name: "a2a_n{nodes}_algDefault_prot{protocols_1}_ch{channels}_thDefault_{partition_lumi}"
@@ -55,7 +56,8 @@ lumi:
         - "NCCL_DEBUG=INFO"
         - "NCCL_DEBUG_SUBSYS=GRAPH"
       modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
-    
+      custom_headers: ["export EBU_USER_PREFIX=/project/project_465002469/EasyBuild"]
+
     - name: "ar_n{nodes}_default_{partition_lumi}"
       exclusive: true
       nodes: "{nodes}"
@@ -71,6 +73,7 @@ lumi:
         - "NCCL_DEBUG=INFO"
         - "NCCL_DEBUG_SUBSYS=GRAPH"
       modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
+      custom_headers: ["export EBU_USER_PREFIX=/project/project_465002469/EasyBuild"]
 
     - name: "ar_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_lumi}"
       exclusive: true
@@ -89,7 +92,8 @@ lumi:
         - "NCCL_DEBUG=INFO"
         - "NCCL_DEBUG_SUBSYS=GRAPH"
       modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
-
+      custom_headers: ["export EBU_USER_PREFIX=/project/project_465002469/EasyBuild"]
+    
     - name: "ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_lumi}"
       exclusive: true
       nodes: "{nodes}"
@@ -108,7 +112,8 @@ lumi:
         - "NCCL_DEBUG=INFO"
         - "NCCL_DEBUG_SUBSYS=GRAPH"
       modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
-
+      custom_headers: ["export EBU_USER_PREFIX=/project/project_465002469/EasyBuild"]
+      
 # LEONARDO Config.
 leonardo:
   scheduler: slurm
