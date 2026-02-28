@@ -251,7 +251,7 @@ namespace common {
                 double data_Gb = static_cast<double>(info.message_size_bytes) / 1.25e+8;
                 double goodput_Gb_per_s = 0;
                 if(collective_name == "a2a"){
-                    goodput_Gb_per_s = (data_Gb * info.num_ranks) / (time_ms_1coll / 1000); // Gigabit per seconds 
+                    goodput_Gb_per_s = (data_Gb * (info.num_ranks -1) ) / (time_ms_1coll / 1000); // Gigabit per seconds 
                 }
                 else if(collective_name == "ar"){
                     goodput_Gb_per_s = data_Gb / (time_ms_1coll / 1000); // Gigabit per seconds 
