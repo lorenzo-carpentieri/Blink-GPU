@@ -313,10 +313,10 @@ namespace common {
                             << info.chain_size << ","
                             << std::fixed << std::setprecision(6) << info.time_ms  << ","
                             << std::fixed << std::setprecision(6) << time_ms_1coll  << ","
-                            << std::fixed << std::setprecision(3) << info.device_energy_mj  << ","
-                            << std::fixed << std::setprecision(3) << device_energy_mj_1coll  << ","
-                            << std::fixed << std::setprecision(3) << info.host_energy_mj  << ","
-                            << std::fixed << std::setprecision(3) << host_energy_mj_1coll  << ","
+                            << std::fixed << std::setprecision(6) << info.device_energy_mj  << ","
+                            << std::fixed << std::setprecision(6) << device_energy_mj_1coll  << ","
+                            << std::fixed << std::setprecision(6) << info.host_energy_mj  << ","
+                            << std::fixed << std::setprecision(6) << host_energy_mj_1coll  << ","
                             << std::fixed << std::setprecision(6) << goodput_Gb_per_s;
                             
                             // Write extra fields if any
