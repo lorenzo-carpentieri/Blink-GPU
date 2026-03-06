@@ -1,5 +1,6 @@
 if (ENABLE_NCCL)
     add_subdirectory(nvidia)
+    add_subdirectory(nvidia/multi-node)
 elseif (ENABLE_RCCL)
     add_subdirectory(amd)
 elseif (ENABLE_ONECCL)

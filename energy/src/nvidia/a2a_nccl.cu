@@ -105,11 +105,11 @@ void run(nvidia::utils::ncclContext& ctx){
             prof_data_types::energy_t dev_energy_uj = powerProf.get_device_energy(); //device energy in uj for one collective run for the current rank
             double time_ms = static_cast<double>(a2a_time_per_rank) / 1000.0; // time in ms for the current rank
             double dev_energy_mj = static_cast<double>(dev_energy_uj) / 1000.0; 
-            if (rank == 0) {
-                std::cerr << "[RESULT] Writing in logger file ..." << std::endl;
-            }
+            prof_data_types::energy_t host_energy_uj = powerProf.get_host_energy(); //host energy in uj for one collective run for the current rank
+            double host_energy_mj = static_cast<double>(host_energy_uj) / 1000.0; 
+            
             // host energy is 0 now
-            clog::Logger::ProfilingInfo<T> prof_info{time_ms, buff_size_byte[i], dev_energy_mj, 0.0, ctx.global_rank, ctx.local_rank, ctx.global_rank_size, run, true, chain_size, "composite"};  
+            clog::Logger::ProfilingInfo<T> prof_info{time_ms, buff_size_byte[i], dev_energy_mj, host_energy_mj, ctx.global_rank, ctx.local_rank, ctx.global_rank_size, run, true, chain_size, "composite"};  
             prof_data_types::power_trace_t power_trace = powerProf.get_power_execution_data(); // get power trace data and store it internally in the power_prof object
             std::string power_trace_str = prof_data_types::power_trace_to_string(power_trace);
             clog::CsvField power_trace_field{"power_trace", power_trace_str};
