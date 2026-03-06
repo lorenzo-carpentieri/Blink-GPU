@@ -30,6 +30,11 @@ void run(nvidia::utils::ncclContext& ctx){
 
     
 
+    // size_t buff_size_byte[] = {
+    //     4,
+    //     32, 64, 512, 4096, 32768, 262144,
+    //     2097152, 16777216, 134217728, 1073741824
+    // };
     size_t buff_size_byte[] = {
         4,
         32, 64, 512, 4096, 32768, 262144,
@@ -93,11 +98,29 @@ void run(nvidia::utils::ncclContext& ctx){
             }
             powerProf.stop();
             prof_data_types::energy_t dev_energy_uj = powerProf.get_device_energy(); //device energy in uj for one collective run for the current rank
-            double time_ms = static_cast<double>(ar_time_per_rank) / 1000.0; // time in ms for the current rank
             double dev_energy_mj = static_cast<double>(dev_energy_uj) / 1000.0; 
             
-            // host energy is 0 now
-            clog::Logger::ProfilingInfo<T> prof_info{time_ms, buff_size_byte[i], dev_energy_mj, 0.0, ctx.global_rank, ctx.local_rank, ctx.global_rank_size, run, true, chain_size, "composite"};  
+            prof_data_types::energy_t host_energy_uj = powerProf.get_host_energy(); //host energy in uj for one collective run for the current rank
+            double host_energy_mj = static_cast<double>(host_energy_uj) / 1000.0; 
+            
+            double time_ms = static_cast<double>(ar_time_per_rank) / 1000.0; // time in ms for the current rank
+            /* 
+                Problem description: the host energy measured by the power profiler can only consider the energy of the entire CPU socket. 
+                So there can be two possible scenarios:
+                1) All local ranks are executed on the same CPU socket. In this case the host energy measured by each local will be the same and we have to consider the 
+                   the max energy between the local rank. Given the cpu_energy_i where i is the local rank, host_energy = max(cpu_energy_i) for i in [0, local_rank_size-1].
+                   On multi node scenario, for each node we have to consider the max energy between the local ranks and then sum the energy of each node. 
+                   Given the cpu_energy_j where j is the node, host_energy = sum(max(cpu_energy_i) for i in [0, local_rank_size-1]) for j in [0, total_nodes-1].
+                
+                2) Some Ranks are executed on different CPUs: in that case we first consider the max energy of the rank on the same CPU and then we sum the eneryg of each different CPU.            
+                Since this is cluster dependent we will store in the profiler the total host energy instead of the energy for each individual rank.
+
+                In Leonardo we have one single CPU socket, so we are in the first scenario and we will consider the max energy between the local ranks as host energy.
+                We will store the host energy computed by each rank and then in a python script we will take the max energy.
+            */
+            
+
+            clog::Logger::ProfilingInfo<T> prof_info{time_ms, buff_size_byte[i], dev_energy_mj, host_energy_mj, ctx.global_rank, ctx.local_rank, ctx.global_rank_size, run, true, chain_size, "composite"};  
             prof_data_types::power_trace_t power_trace = powerProf.get_power_execution_data(); // get power trace data and store it internally in the power_prof object
             std::string power_trace_str = prof_data_types::power_trace_to_string(power_trace);
             clog::CsvField power_trace_field{"power_trace", power_trace_str};
