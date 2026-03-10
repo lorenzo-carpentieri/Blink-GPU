@@ -2,6 +2,7 @@
 set(NCCL_COLLECTIVES
     a2a_nccl
     ar_nccl
+    ar_manual_nccl
     mpi_energy
 )
 
