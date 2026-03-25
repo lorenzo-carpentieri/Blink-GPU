@@ -9,7 +9,7 @@ variables:
   partition_leonardo: [boost_usr_prod]
 
   base_dir_lumi: ["/users/carpenti/energy-ws/Blink-GPU/energy"]
-  base_dir_leonardo: ["/leonardo/home/userexternal/kfan0000/mpi-energy/Blink-GPU/energy"]
+  base_dir_leonardo: ["/leonardo/home/userexternal/lcarpent/mpi-energy/Blink-GPU/energy"] # Change this path to your home directory on the Leonardo cluster.
 
 jobs:
   ####### LUMI ############################################################
@@ -77,4 +77,23 @@ jobs:
      cluster_name: "leonardo"
      config_jobs:
       - tag: ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_leonardo}
+
+  ################## ReduceSceatter + Gather ###############################
+  #  - config: ar_manual_n{nodes}_default_{partition_leonardo}
+  #    command: "srun {base_dir_leonardo}/build/bin/ar_manual_nccl {base_dir_leonardo}/logs/ar_manual_n{nodes}_default_{partition_leonardo}.csv"
+  #    cluster_name: "leonardo"
+  #    config_jobs:
+  #     - tag: ar_manual_n{nodes}_default_{partition_leonardo}
+
+  #  - config: ar_manual_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_leonardo}
+  #    command: "srun {base_dir_leonardo}/build/bin/ar_manual_nccl {base_dir_leonardo}/logs/ar_manual_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_leonardo}.csv"
+  #    cluster_name: "leonardo"
+  #    config_jobs:
+  #     - tag: ar_manual_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_leonardo}
+
+  #  - config: ar_manual_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_leonardo}
+  #    command: "srun {base_dir_leonardo}/build/bin/ar_manual_nccl {base_dir_leonardo}/logs/ar_manual_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_leonardo}.csv"
+  #    cluster_name: "leonardo"
+  #    config_jobs:
+  #     - tag: ar_manual_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_leonardo}
   ########################################################################
