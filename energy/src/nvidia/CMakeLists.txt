@@ -36,6 +36,7 @@ foreach(target ${NCCL_COLLECTIVES})
 
     target_link_libraries(${target}
         PRIVATE
+            stdc++fs
             MPI::MPI_CXX
             nccl
             power_profiler
