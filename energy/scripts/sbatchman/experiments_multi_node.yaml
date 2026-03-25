@@ -1,0 +1,96 @@
+variables:
+  # nodes: [2, 4, 8, 16]
+  # nodes: [2, 4, 8]
+  # nodes: [2, 4, 8, 16, 32]
+  nodes: [32, 64]
+  channels: [2, 4, 8, 16, 32]
+  # protocols_1: ["Simple", "LL",  "LL128"] # All protocols 
+  protocols_1: ["Simple", "LL"] # Removed LL128 since is not working for config
+  alg: [Ring, Tree]
+  threads: [64, 128, 256, 512]
+  partition_lumi: [standard-g]
+  partition_leonardo: [boost_usr_prod]
+
+
+  ############# TEST PARAM #############
+  # nodes: [2]
+  # channels: [32]
+  # protocols_1: ["Simple"]
+  # alg: [Ring]
+  # threads: [256]
+  # partition_lumi: [standard-g]
+  # partition_leonardo: [boost_usr_prod]
+  ########################################
+
+  base_dir_lumi: ["/users/carpenti/energy-ws/Blink-GPU/energy"]
+  base_dir_leonardo: ["/leonardo/home/userexternal/lcarpent/mpi-energy/Blink-GPU/energy"] # Change this path to your home directory on the Leonardo cluster.
+
+# sequential: true
+
+jobs:
+  ####### LUMI ############################################################
+   - config: a2a_n{nodes}_default_{partition_lumi}
+     command: "srun {base_dir_lumi}/build/bin/a2a_rccl_multi {base_dir_lumi}/logs/a2a_n{nodes}_default_{partition_lumi}.csv"
+     cluster_name: "lumi"
+     config_jobs:
+      - tag: a2a_n{nodes}_default_{partition_lumi}
+  
+   - config: a2a_n{nodes}_algDefault_prot{protocols_1}_ch{channels}_thDefault_{partition_lumi}
+     command: "srun {base_dir_lumi}/build/bin/a2a_rccl_multi {base_dir_lumi}/logs/a2a_n{nodes}_algDefault_prot{protocols_1}_ch{channels}_thDefault_{partition_lumi}.csv"
+     cluster_name: "lumi"
+     config_jobs:
+      - tag: a2a_n{nodes}_algDefault_prot{protocols_1}_ch{channels}_thDefault_{partition_lumi}
+  
+
+   - config: ar_n{nodes}_default_{partition_lumi}
+     command: "srun {base_dir_lumi}/build/bin/ar_rccl_multi {base_dir_lumi}/logs/ar_n{nodes}_default_{partition_lumi}.csv"
+     cluster_name: "lumi"
+     config_jobs:
+      - tag: ar_n{nodes}_default_{partition_lumi}
+
+   - config: ar_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_lumi}
+     command: "srun {base_dir_lumi}/build/bin/ar_rccl_multi {base_dir_lumi}/logs/ar_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_lumi}.csv"
+     cluster_name: "lumi"
+     config_jobs:
+      - tag: ar_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_lumi}
+
+   - config: ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_lumi}
+     command: "srun {base_dir_lumi}/build/bin/ar_rccl_multi {base_dir_lumi}/logs/ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_lumi}.csv"
+     cluster_name: "lumi"
+     config_jobs:
+      - tag: ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_lumi}
+  ########################################################################
+
+    
+  ####### Leonardo ############################################################
+   - config: a2a_n{nodes}_default_{partition_leonardo}
+     command: "srun {base_dir_leonardo}/build/bin/a2a_nccl_multi {base_dir_leonardo}/logs/a2a_n{nodes}_default_{partition_leonardo}.csv"
+     cluster_name: "leonardo"
+     config_jobs:
+     - tag: a2a_n{nodes}_default_{partition_leonardo}
+  
+   - config: a2a_n{nodes}_algDefault_protDefault_ch{channels}_thDefault_{partition_leonardo}
+     command: "srun {base_dir_leonardo}/build/bin/a2a_nccl_multi {base_dir_leonardo}/logs/a2a_n{nodes}_algDefault_protDefault_ch{channels}_thDefault_{partition_leonardo}.csv"
+     cluster_name: "leonardo"
+     config_jobs:
+     - tag: a2a_n{nodes}_algDefault_protDefault_ch{channels}_thDefault_{partition_leonardo}
+  
+
+   - config: ar_n{nodes}_default_{partition_leonardo}
+     command: "srun {base_dir_leonardo}/build/bin/ar_nccl_multi {base_dir_leonardo}/logs/ar_n{nodes}_default_{partition_leonardo}.csv"
+     cluster_name: "leonardo"
+     config_jobs:
+     - tag: ar_n{nodes}_default_{partition_leonardo}
+
+   - config: ar_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_leonardo}
+     command: "srun {base_dir_leonardo}/build/bin/ar_nccl_multi {base_dir_leonardo}/logs/ar_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_leonardo}.csv"
+     cluster_name: "leonardo"
+     config_jobs:
+      - tag: ar_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_leonardo}
+
+   - config: ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_leonardo}
+     command: "srun {base_dir_leonardo}/build/bin/ar_nccl_multi {base_dir_leonardo}/logs/ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_leonardo}.csv"
+     cluster_name: "leonardo"
+     config_jobs:
+     - tag: ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_leonardo}
+  ########################################################################
