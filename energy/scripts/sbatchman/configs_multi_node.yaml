@@ -29,19 +29,18 @@ lumi:
       time: "01:00:00"
       env:
         - "NCCL_NET_GDR_LEVEL=3"
-        - "HSA_ENABLE_SDMA=1"
+        - "HSA_ENABLE_SDMA=0"
         - "FI_CXI_ATS=0"
         - "UCX_IB_SL=1"
         - "NCCL_IB_SL=1"
+        - "NCCL_IGNORE_CPU_AFFINITY=1"
+        - "FI_CXI_DEFAULT_CQ_SIZE=13107"
         - "NCCL_BUFFSIZE=33554432"
         - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
-        - "CXX=/opt/rocm-6.3.4/lib/llvm/bin/clang++"
-        - "CC=gcc"
         - "NCCL_DEBUG=INFO"
-        - "NCCL_DEBUG_SUBSYS=GRAPH"
-        - "USER_HIP_GPU_MAP=5,3,7,1,4,2,6,0"
+        - "NCCL_SOCKET_IFNAME=hsn0,hsn1,hsn2,hsn3"
       custom_headers: ["export EBU_USER_PREFIX=/project/project_465002469/EasyBuild"]
-      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
+      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "craype-accel-amd-gfx90a", "rocm/6.3.4"]
 
     - name: "a2a_n{nodes}_algDefault_protDefault_ch{channels}_thDefault_{partition_lumi}"
       exclusive: true
@@ -50,22 +49,22 @@ lumi:
       time: "01:00:00"
       env:
         - "NCCL_NET_GDR_LEVEL=3"
-        - "HSA_ENABLE_SDMA=1"
+        - "HSA_ENABLE_SDMA=0"
         - "FI_CXI_ATS=0"
         - "UCX_IB_SL=1"
         - "NCCL_IB_SL=1"
-        - "NCCL_BUFFSIZE=33554432"
-        - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
+        - "NCCL_IGNORE_CPU_AFFINITY=1"
+        - "FI_CXI_DEFAULT_CQ_SIZE=13107"
         - "NCCL_MIN_CTAS={channels}"
         - "NCCL_MAX_CTAS={channels}"
-        - "CXX=/opt/rocm-6.3.4/lib/llvm/bin/clang++"
-        - "CC=gcc"
+        - "NCCL_MIN_NCHANNELS={channels}"
+        - "NCCL_MAX_NCHANNELS={channels}"
+        - "NCCL_BUFFSIZE=33554432"
+        - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
         - "NCCL_DEBUG=INFO"
-        - "NCCL_DEBUG_SUBSYS=GRAPH"
-        - "USER_HIP_GPU_MAP=5,3,7,1,4,2,6,0"
-        
-      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
+        - "NCCL_SOCKET_IFNAME=hsn0,hsn1,hsn2,hsn3"
       custom_headers: ["export EBU_USER_PREFIX=/project/project_465002469/EasyBuild"]
+      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "craype-accel-amd-gfx90a", "rocm/6.3.4"]
 
     - name: "ar_n{nodes}_default_{partition_lumi}"
       exclusive: true
@@ -74,20 +73,18 @@ lumi:
       time: "01:00:00"
       env:
         - "NCCL_NET_GDR_LEVEL=3"
-        - "HSA_ENABLE_SDMA=1"
+        - "HSA_ENABLE_SDMA=0"
         - "FI_CXI_ATS=0"
         - "UCX_IB_SL=1"
         - "NCCL_IB_SL=1"
+        - "NCCL_IGNORE_CPU_AFFINITY=1"
+        - "FI_CXI_DEFAULT_CQ_SIZE=13107"
         - "NCCL_BUFFSIZE=33554432"
         - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
-        - "CXX=/opt/rocm-6.3.4/lib/llvm/bin/clang++"
-        - "CC=gcc"
         - "NCCL_DEBUG=INFO"
-        - "NCCL_DEBUG_SUBSYS=GRAPH"
-        - "USER_HIP_GPU_MAP=5,3,7,1,4,2,6,0"
-
-      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
+        - "NCCL_SOCKET_IFNAME=hsn0,hsn1,hsn2,hsn3"
       custom_headers: ["export EBU_USER_PREFIX=/project/project_465002469/EasyBuild"]
+      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "craype-accel-amd-gfx90a", "rocm/6.3.4"]
 
     - name: "ar_n{nodes}_alg{alg}_prot{protocols_1}_chDefault_thDefault_{partition_lumi}"
       exclusive: true
@@ -96,22 +93,20 @@ lumi:
       time: "01:00:00"
       env:
         - "NCCL_NET_GDR_LEVEL=3"
-        - "HSA_ENABLE_SDMA=1"
+        - "HSA_ENABLE_SDMA=0"
         - "FI_CXI_ATS=0"
         - "UCX_IB_SL=1"
         - "NCCL_IB_SL=1"
-        - "NCCL_BUFFSIZE=33554432"
-        - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
+        - "NCCL_IGNORE_CPU_AFFINITY=1"
+        - "FI_CXI_DEFAULT_CQ_SIZE=13107"
         - "NCCL_PROTO={protocols_1}"
         - "NCCL_ALGO={alg}"
-        - "CXX=/opt/rocm-6.3.4/lib/llvm/bin/clang++"
-        - "CC=gcc"
+        - "NCCL_BUFFSIZE=33554432"
+        - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
         - "NCCL_DEBUG=INFO"
-        - "NCCL_DEBUG_SUBSYS=GRAPH"
-        - "USER_HIP_GPU_MAP=5,3,7,1,4,2,6,0"
-
-      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
+        - "NCCL_SOCKET_IFNAME=hsn0,hsn1,hsn2,hsn3"
       custom_headers: ["export EBU_USER_PREFIX=/project/project_465002469/EasyBuild"]
+      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "craype-accel-amd-gfx90a", "rocm/6.3.4"]
     
     - name: "ar_n{nodes}_algDefault_protDefault_ch{channels}_th{threads}_{partition_lumi}"
       exclusive: true
@@ -120,23 +115,23 @@ lumi:
       time: "01:00:00"
       env:
         - "NCCL_NET_GDR_LEVEL=3"
-        - "HSA_ENABLE_SDMA=1"
+        - "HSA_ENABLE_SDMA=0"
         - "FI_CXI_ATS=0"
         - "UCX_IB_SL=1"
         - "NCCL_IB_SL=1"
-        - "NCCL_BUFFSIZE=33554432"
-        - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
+        - "NCCL_IGNORE_CPU_AFFINITY=1"
+        - "FI_CXI_DEFAULT_CQ_SIZE=13107"
+        - "NCCL_MIN_NCHANNELS={channels}"
+        - "NCCL_MAX_NCHANNELS={channels}"
         - "NCCL_MIN_CTAS={channels}"
         - "NCCL_MAX_CTAS={channels}"
         - "NCCL_NTHREADS={threads}" # Fixed for all to all implemented with send/recv
-        - "CXX=/opt/rocm-6.3.4/lib/llvm/bin/clang++"
-        - "CC=gcc"
+        - "NCCL_BUFFSIZE=33554432"
+        - "EBU_USER_PREFIX=/project/project_465002469/EasyBuild"
         - "NCCL_DEBUG=INFO"
-        - "NCCL_DEBUG_SUBSYS=GRAPH"
-        - "USER_HIP_GPU_MAP=5,3,7,1,4,2,6,0"
-
-      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "rocm/6.3.4"]
+        - "NCCL_SOCKET_IFNAME=hsn0,hsn1,hsn2,hsn3"
       custom_headers: ["export EBU_USER_PREFIX=/project/project_465002469/EasyBuild"]
+      modules: ["LUMI/25.03","partition/G", "aws-ofi-rccl/17d41cb-cpeGNU-25.03", "craype-accel-amd-gfx90a", "rocm/6.3.4"]
       
 # LEONARDO Config.
 leonardo:
