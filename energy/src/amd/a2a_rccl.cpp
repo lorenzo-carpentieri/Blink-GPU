@@ -90,7 +90,7 @@ void run(amd::utils::rcclContext& ctx){
             size_t a2a_time = 0;
             size_t a2a_time_per_rank = 0;
             chain_size = 0;
-            profiler::PowerProfiler powerProf(rank % numGPUs, POWER_SAMPLING_RATE_MS);
+            profiler::PowerProfiler powerProf(rank % numGPUs, 0, POWER_SAMPLING_RATE_MS);
             powerProf.start();
             while (a2a_time < (TIME_TO_ACHIEVE_MS * 1000)) { // a2a_time in microseconds
                 auto start_s = std::chrono::high_resolution_clock::now();
