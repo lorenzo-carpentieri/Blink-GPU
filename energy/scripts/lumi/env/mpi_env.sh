@@ -9,15 +9,19 @@ module --force purge
 # module load aws-ofi-rccl/17d41cb-cpeGNU-25.03
 # module load gcc-native
 
-export EBU_USER_PREFIX=/project/project_465002469/EasyBuild
+
 module load LUMI/25.03 partition/G
+# module load PrgEnv-cray
+# module load craype-accel-amd-gfx90a
+# module load rocm
 module load craype-accel-amd-gfx90a   # for MI250x GPUs
-module load aws-ofi-rccl/
+module load PrgEnv-gnu                 # GNU toolchain
+module load cray-mpich                  # MPICH with libfabric support
 module load rocm/6.3.4
-export NCCL_NET_GDR_LEVEL=3
-export FI_CXI_ATS=0
-export NCCL_BUFFSIZE=33554432
-export NCCL_IGNORE_CPU_AFFINITY=1
-export FI_CXI_DEFAULT_CQ_SIZE=13107
-export HSA_ENABLE_SDMA=0
-export NCCL_SOCKET_IFNAME=hsn0,hsn1,hsn2,hsn3
+export MPICH_GPU_SUPPORT_ENABLED=1     # sometimes also required
+
+export MPICH_DBG_OUTPUT=stdout   # or file
+export MPICH_DBG_CLASS=ALL
+export MPICH_DBG_LEVEL=VERBOSE
+export FI_LOG_LEVEL=debug
+export FI_LOG_PROV=cxi
