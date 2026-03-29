@@ -1,4 +1,8 @@
-module load frameworks
+module restore 
+module load cmake frameworks/2025.2.0 
+module load oneapi/release/2025.2.0 
+# source /opt/aurora/26.26.0/oneapi/setvars.sh
+module load mpich/opt/5.0.0.aurora_test.06f012a 
 export CCL_PROCESS_LAUNCHER=pmix
 export CCL_ATL_TRANSPORT=mpi
 export FI_MR_CACHE_MONITOR=userfaultfd
