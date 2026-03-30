@@ -11,14 +11,14 @@ from pathlib import Path
 #TODO: allreduce ring algorith: reduce_scatter + allgather ring. Use CCL_RS_CHUNK_COUNT and CCL_RS_MIN_CHUNK_SIZE to control pipelining on reduce_scatter phase
 algorithms_map = {
     # "a2a": ["direct", "naive", "scatter"],
-    # "ar": ["direct", "nreduce", "rabenseifner", "ring", "double_tree", "recursive_doubling"],
+    "ar": ["direct", "nreduce", "rabenseifner", "ring", "double_tree", "recursive_doubling"],
     "a2a": ["direct"], 
 }
 
-# scaleup_modes = [0, 1] # 0: use copy engines, 1: use GPU compute kernel
-scaleup_modes = [1] # 0: use copy engines, 1: use GPU compute kernel
+scaleup_modes = [0, 1] # 0: use copy engines, 1: use GPU compute kernel
+# scaleup_modes = [1] # 0: use copy engines, 1: use GPU compute kernel
 
-def set_pbs(pbs_file_to_modify, log_dir, num_nodes, coll, partition):
+def set_pbs(pbs_file_to_modify, log_dir, num_nodes, coll, partition, pbs_time):
     # Update the PBS script with nodes, logs, and job name
     with open(pbs_file_to_modify, 'r') as f:
         lines = f.readlines()
@@ -32,13 +32,15 @@ def set_pbs(pbs_file_to_modify, log_dir, num_nodes, coll, partition):
             if line.startswith("#PBS -l select="):
                 f.write(f"#PBS -l select={num_nodes}\n")
             elif line.startswith("#PBS -N"):
-                f.write(f"#PBS -N {coll}_{num_nodes}\n")
+                f.write(f"#PBS -N {coll}_n{num_nodes}\n")
             elif line.startswith("#PBS -o"):
                 f.write(f"#PBS -o {out_path}\n")
             elif line.startswith("#PBS -e"):
                 f.write(f"#PBS -e {err_path}\n")
             elif line.startswith("#PBS -q"):
                 f.write(f"#PBS -q {partition}\n")
+            elif line.startswith("#PBS -l walltime="):
+                f.write(f"#PBS -l walltime={pbs_time}\n")
             else:
                 f.write(line)
 
@@ -51,9 +53,11 @@ def main():
     parser.add_argument("--exe", required=True, help="Path to executable")
     parser.add_argument("--log", required=True, help="Path to the log directory")
     parser.add_argument("--env", required=True, help="Patht to the script file to set the environment")
-    parser.add_argument("--coll", required=True, help="Collective name [a2a,ar ...]")
+    parser.add_argument("--coll", required=True, help="Collective name can be: a2a or ar")
     parser.add_argument("--nodes", required=True, help="Num. of nodes")
     parser.add_argument("--partition", required=True, default="debug", help="Specify the partition on the target cluster")
+    parser.add_argument("--time", required=True, default="00:10:00", help="Max timeout of the PBS experiment: HH:MM:SS")
+
 
     args = parser.parse_args()
 
@@ -85,9 +89,9 @@ def main():
 
     # Copy the template to the generated path
     shutil.copyfile(pbs_template_path, generated_pbs_path)
-
+    
     # Update the generated PBS script with parameters
-    set_pbs(str(generated_pbs_path), args.log, num_nodes, args.coll, args.partition)
+    set_pbs(str(generated_pbs_path), args.log, num_nodes, args.coll, args.partition, args.time)
     
     is_single_node = num_nodes == 1
 
@@ -107,7 +111,7 @@ def main():
                 submit_job(
                     pbs=str(generated_pbs_path), # Use the generated PBS path
                     exe=args.exe,
-                    csv_log=args.csv_log,
+                    csv_log=args.log,
                     coll=args.coll,
                     scaleup_mode=scaleup_mode,
                     alg_name=alg,
