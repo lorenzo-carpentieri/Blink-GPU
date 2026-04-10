@@ -10,7 +10,7 @@ cmake -S ${SOURCE_DIR} -B ${BUILD_DIR} \
     -DCMAKE_CXX_FLAGS="-fsycl -fsycl-targets=intel_gpu_pvc -lpthread" \
     -DCMAKE_BUILD_TYPE=Release \
     -DUSE_NVML=OFF \
-    -DUSE_LEVEL_ZERO=ON \
+    -DUSE_GEOPM=ON \
     -DUSE_RAPL=OFF \
     -DCMAKE_INSTALL_PREFIX=${BUILD_DIR} 
 
