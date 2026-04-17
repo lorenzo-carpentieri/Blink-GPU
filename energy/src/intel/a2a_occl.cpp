@@ -15,8 +15,8 @@
 
 #define MAX_RUN 5
 #define WARM_UP_RUN 5
-#define TIME_TO_ACHIEVE_MS 5000
-#define POWER_SAMPLING_RATE_MS 40
+#define TIME_TO_ACHIEVE_MS 10000
+#define POWER_SAMPLING_RATE_MS 1
 #define MAX_BUF 100
 
 namespace clog = common::logger;
@@ -40,18 +40,21 @@ void run(intel::utils::OneCCLContext& ctx){
     int numGPUs = ctx.local_rank_size;
     
     size_t buff_size_byte[] = {
-        4,
-        32, 64, 512, 4096, 32768, 262144,
-        2097152, 16777216, 134217728, 1073741824
+        // 4,
+        // 32, 64, 512, 4096, 32768, 262144,
+        2097152 
+        // 16777216, 
+        // 134217728
+        // 1073741824
     };
   
     const int num_iters = std::size(buff_size_byte);
 
-    T* d_sendbuf = sycl::malloc_device<T>( buff_size_byte[num_iters - 1], q);
-    T* d_recvbuf = sycl::malloc_device<T>(buff_size_byte[num_iters - 1] * num_ranks, q);
+    T* d_sendbuf = (T*) sycl::malloc_device( buff_size_byte[num_iters - 1] * num_ranks, q);
+    T* d_recvbuf = (T*) sycl::malloc_device(buff_size_byte[num_iters - 1] * num_ranks, q);
 
     /* init device side buffer */
-    q.memset(d_sendbuf, rank, buff_size_byte[num_iters - 1]);
+    q.memset(d_sendbuf, rank, buff_size_byte[num_iters - 1] *  num_ranks);
     q.memset(d_recvbuf, -1, buff_size_byte[num_iters - 1] * num_ranks);
      
 
@@ -91,8 +94,8 @@ void run(intel::utils::OneCCLContext& ctx){
             size_t a2a_time = 0;
             size_t a2a_time_per_rank = 0;
             chain_size = 0;
-            
-            profiler::PowerProfiler powerProf(rank % numGPUs,0, POWER_SAMPLING_RATE_MS);
+            int socket_id = ctx.local_rank <= 5 ? 0 : 1; // get the socket id of the current rank
+            profiler::PowerProfiler powerProf(rank % numGPUs, socket_id, POWER_SAMPLING_RATE_MS);
             powerProf.start();
             while (a2a_time < (TIME_TO_ACHIEVE_MS * 1000)) {
                 auto start_s = std::chrono::high_resolution_clock::now();
@@ -105,8 +108,8 @@ void run(intel::utils::OneCCLContext& ctx){
                     ccl::alltoall(d_sendbuf, d_recvbuf, count , ccl::datatype::float32, comm, stream, attr, deps).wait();
                     chain_size++;
                 }
-                auto end_s = std::chrono::high_resolution_clock::now();
                 MPI_Barrier(MPI_COMM_WORLD);
+                auto end_s = std::chrono::high_resolution_clock::now();
                 // Time to solution of the current rank
                 auto elapsed_time = std::chrono::duration_cast<std::chrono::microseconds>(end_s - start_s).count();
                 a2a_time_per_rank += elapsed_time;
@@ -123,12 +126,15 @@ void run(intel::utils::OneCCLContext& ctx){
             prof_data_types::energy_t host_energy_uj = powerProf.get_host_energy(); //host energy in uj for one collective run for the current rank
             double host_energy_mj = static_cast<double>(host_energy_uj) / 1000.0; 
             
-            // host energy is 0 now
             clog::Logger::ProfilingInfo<T> prof_info{time_ms, buff_size_byte[i], dev_energy_mj, host_energy_mj, ctx.global_rank, ctx.local_rank, ctx.global_rank_size, run, true, chain_size, "composite"};  
             prof_data_types::power_trace_t power_trace = powerProf.get_power_execution_data(); // get power trace data and store it internally in the power_prof object
+            prof_data_types::power_trace_t host_power_trace = powerProf.get_host_power_trace(); // get power trace data and store it internally in the power_prof object
+
             std::string power_trace_str = prof_data_types::power_trace_to_string(power_trace);
+            std::string host_power_trace_str = prof_data_types::power_trace_to_string(host_power_trace);
             clog::CsvField power_trace_field{"power_trace", power_trace_str};
-            csv_log.log_result<T>(prof_info, power_trace_field); 
+            clog::CsvField host_power_trace_field{"host_power_trace", host_power_trace_str};
+            csv_log.log_result<T>(prof_info, power_trace_field, host_power_trace_field); 
         }
     }
    

@@ -15,8 +15,8 @@
 
 #define MAX_RUN 5
 #define WARM_UP_RUN 5
-#define TIME_TO_ACHIEVE_MS 5000
-#define POWER_SAMPLING_RATE_MS 40
+#define TIME_TO_ACHIEVE_MS 10000
+#define POWER_SAMPLING_RATE_MS 1
 #define MAX_BUF 100
 
 namespace clog = common::logger; // define logger namespace abbreviation
@@ -37,20 +37,17 @@ void run(intel::utils::OneCCLContext& ctx){
     
 
     size_t buff_size_byte[] = {
-        4,
-        32, 64, 512, 4096, 32768, 262144,
-        2097152, 16777216, 134217728, 1073741824
+        // 4,
+        // 32, 64, 512, 4096, 32768, 262144,
+        // 2097152, 16777216, 134217728, 
+        1073741824
     };
   
     const int num_iters = std::size(buff_size_byte);
 
     // allocate device pointer
-    T *d_sendbuf = sycl::malloc_device<T>(buff_size_byte[num_iters - 1], q); 
-    T *d_recvbuf = sycl::malloc_device<T>(buff_size_byte[num_iters - 1], q); 
-
-    /* init device side buffer */
-    q.memset(d_sendbuf, rank, buff_size_byte[num_iters - 1]);
-    q.memset(d_recvbuf, 0, buff_size_byte[num_iters - 1]);
+    T *d_sendbuf = (T*) sycl::malloc_device(buff_size_byte[num_iters - 1], q); 
+    T *d_recvbuf = (T*) sycl::malloc_device(buff_size_byte[num_iters - 1], q); 
 
 
     // create dependencies vector: can be used in the collective to ensure that consecutive call to the collective are exectude in order
@@ -64,6 +61,18 @@ void run(intel::utils::OneCCLContext& ctx){
     if (rank == 0) {
         std::cout<< "Warm up run for allreduce" << std::endl;    
     }
+
+    size_t max_bytes = buff_size_byte[num_iters - 1];
+    size_t max_count = max_bytes / sizeof(T);
+
+    for (size_t i = 0; i < max_count; i++) {
+        h_sendbuf[i] = static_cast<T>(rank);
+        h_recvbuf[i] = static_cast<T>(0);
+    }
+
+    q.memcpy(d_sendbuf, h_sendbuf, max_bytes).wait();
+    q.memcpy(d_recvbuf, h_recvbuf, max_bytes).wait();  
+
     
     for (int i = 0; i < WARM_UP_RUN; i++) {
         q.memcpy(h_sendbuf, d_sendbuf, buff_size_byte[num_iters-1]).wait();
@@ -91,16 +100,17 @@ void run(intel::utils::OneCCLContext& ctx){
             size_t ar_time = 0;
             size_t ar_time_per_rank = 0;
             chain_size = 0;
+            int socket_id = ctx.local_rank <= 5 ? 0 : 1; // get the socket id of the current rank
             
-            profiler::PowerProfiler powerProf(rank % numGPUs, 0, POWER_SAMPLING_RATE_MS);
+            profiler::PowerProfiler powerProf(rank % numGPUs, socket_id, POWER_SAMPLING_RATE_MS);
             powerProf.start();
             while (ar_time < (TIME_TO_ACHIEVE_MS * 1000)) {
                 auto start_s = std::chrono::high_resolution_clock::now();
                 
                 ccl::allreduce(d_sendbuf, d_recvbuf,  buff_size_byte[i] / sizeof(T),ccl::datatype::float32, ccl::reduction::sum, comm, stream, attr, deps).wait();
 
-                auto end_s = std::chrono::high_resolution_clock::now();
                 MPI_Barrier(MPI_COMM_WORLD);
+                auto end_s = std::chrono::high_resolution_clock::now();
                 // Time to solution of the current rank
                 auto elapsed_time = std::chrono::duration_cast<std::chrono::microseconds>(end_s - start_s).count();
                 ar_time_per_rank += elapsed_time;
@@ -122,9 +132,15 @@ void run(intel::utils::OneCCLContext& ctx){
             // host energy is 0 now
             clog::Logger::ProfilingInfo<T> prof_info{time_ms, buff_size_byte[i], dev_energy_mj, host_energy_mj, ctx.global_rank, ctx.local_rank, ctx.global_rank_size, run, true, chain_size, "composite"};  
             prof_data_types::power_trace_t power_trace = powerProf.get_power_execution_data(); // get power trace data and store it internally in the power_prof object
+            prof_data_types::power_trace_t host_power_trace = powerProf.get_host_power_trace(); // get power trace data and store it internally in the power_prof object
+
             std::string power_trace_str = prof_data_types::power_trace_to_string(power_trace);
+            std::string host_power_trace_str = prof_data_types::power_trace_to_string(host_power_trace);
+
             clog::CsvField power_trace_field{"power_trace", power_trace_str};
-            csv_log.log_result<T>(prof_info, power_trace_field); 
+            clog::CsvField host_power_trace_field{"host_power_trace", host_power_trace_str};
+
+            csv_log.log_result<T>(prof_info, power_trace_field, host_power_trace_field); 
         }
     }
    
