@@ -44,10 +44,10 @@ void run(amd::utils::rcclContext& ctx){
     std::cerr<< "###### Start alloc device memory ... ######" <<std::endl;
     T *d_sendbuf, *d_recvbuf;
     CHECK_HIP(hipMalloc((void **)&d_sendbuf, buff_size_byte[num_iters - 1]));
-    CHECK_HIP(hipMalloc((void **)&d_recvbuf, buff_size_byte[num_iters - 1])); // each rank sendbuff size bytes
+    CHECK_HIP(hipMalloc((void **)&d_recvbuf, buff_size_byte[num_iters - 1]) * size); // each rank sendbuff size bytes
 
     T *h_sendbuf = (T *)malloc(buff_size_byte[num_iters - 1]);
-    // T *h_recvbuf = (T *)malloc(buff_size_byte[num_iters - 1] * size);
+    T *h_recvbuf = (T *)malloc(buff_size_byte[num_iters - 1] * size);
 
     std::cerr<< "###### End alloc device memory ... ######" <<std::endl;
 
@@ -62,7 +62,7 @@ void run(amd::utils::rcclContext& ctx){
         ncclGroupStart();
         for (int r=0; r<size; r++) {
             ncclSend(d_sendbuf, count_el, dtype, r, comm, stream);
-            ncclRecv(d_recvbuf, count_el, dtype, r, comm, stream);          
+            ncclRecv(d_recvbuf + (r * count_el), count_el, dtype, r, comm, stream);          
         }
         ncclGroupEnd();
 
@@ -70,7 +70,7 @@ void run(amd::utils::rcclContext& ctx){
         MPI_Barrier(MPI_COMM_WORLD);
         auto end = std::chrono::high_resolution_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        // CHECK_HIP(hipMemcpy(d_recvbuf, h_recvbuf, buff_size_byte[num_iters-1] * size, hipMemcpyHostToDevice));
+        CHECK_HIP(hipMemcpy(d_recvbuf, h_recvbuf, buff_size_byte[num_iters-1] * size, hipMemcpyHostToDevice));
     }
     std::cerr<< "###### End warmup ... ######" <<std::endl;
 
@@ -78,7 +78,7 @@ void run(amd::utils::rcclContext& ctx){
     std::cerr<< "###### Start memset ... ######" <<std::endl;
     CHECK_HIP(hipMemset(d_sendbuf, rank, buff_size_byte[num_iters-1]));
     auto mem_cpy_t_start = std::chrono::high_resolution_clock::now();
-    // CHECK_HIP(hipMemcpy(h_sendbuf, d_sendbuf, buff_size_byte[num_iters-1], hipMemcpyDeviceToHost));
+    CHECK_HIP(hipMemcpy(h_sendbuf, d_sendbuf, buff_size_byte[num_iters-1], hipMemcpyDeviceToHost));
     auto mem_cpy_t_end = std::chrono::high_resolution_clock::now();
     std::cerr<< "###### End memset ... ######" <<std::endl;
 
@@ -97,7 +97,7 @@ void run(amd::utils::rcclContext& ctx){
                 ncclGroupStart();
                 for (int r=0; r<size; r++) {
                     ncclSend(d_sendbuf, count_el, dtype, r, comm, stream);
-                    ncclRecv(d_recvbuf, count_el, dtype, r, comm, stream);          
+                    ncclRecv(d_recvbuf + (r*count_el), count_el, dtype, r, comm, stream);          
                 }
                 ncclGroupEnd();
                 CHECK_HIP(hipStreamSynchronize(stream));
