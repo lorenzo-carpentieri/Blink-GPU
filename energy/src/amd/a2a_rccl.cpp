@@ -44,7 +44,7 @@ void run(amd::utils::rcclContext& ctx){
     std::cerr<< "###### Start alloc device memory ... ######" <<std::endl;
     T *d_sendbuf, *d_recvbuf;
     CHECK_HIP(hipMalloc((void **)&d_sendbuf, buff_size_byte[num_iters - 1]));
-    CHECK_HIP(hipMalloc((void **)&d_recvbuf, buff_size_byte[num_iters - 1]) * size); // each rank sendbuff size bytes
+    CHECK_HIP(hipMalloc((void **)&d_recvbuf, buff_size_byte[num_iters - 1] * size)); // each rank sendbuff size bytes
 
     T *h_sendbuf = (T *)malloc(buff_size_byte[num_iters - 1]);
     T *h_recvbuf = (T *)malloc(buff_size_byte[num_iters - 1] * size);
